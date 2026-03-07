@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>台獎抽籤</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Arial', sans-serif;
+    background: #1a0000;
+    color: #FFD700;
+    min-height: 100vh;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── Animated background particles ── */
+  #bg-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* ── Setup Screen ── */
+  #setup-screen {
+    position: relative;
+    z-index: 10;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 30px 20px;
+    overflow-y: auto;
+  }
+
+  .setup-header {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+
+  .setup-header h1 {
+    font-size: 2.8rem;
+    color: #FFD700;
+    text-shadow: 0 0 20px #FF4500, 0 0 40px #FF4500;
+    letter-spacing: 4px;
+  }
+
+  .setup-header p {
+    color: #FFA500;
+    margin-top: 6px;
+    font-size: 1rem;
+  }
+
+  .logo-row {
+    display: flex;
+    gap: 30px;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+  }
+
+  .logo-box {
+    background: rgba(255,215,0,0.08);
+    border: 1px solid rgba(255,215,0,0.3);
+    border-radius: 12px;
+    padding: 14px 20px;
+    min-width: 220px;
+    text-align: center;
+  }
+
+  .logo-box label {
+    display: block;
+    font-size: 0.85rem;
+    color: #FFA500;
+    margin-bottom: 8px;
+  }
+
+  .logo-box input[type="text"],
+  .logo-box input[type="file"],
+  .logo-box input[type="number"] {
+    width: 100%;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid #8B0000;
+    border-radius: 6px;
+    color: #FFD700;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+  }
+
+  .logo-preview {
+    max-height: 60px;
+    max-width: 160px;
+    margin-top: 8px;
+    object-fit: contain;
+    display: none;
+    border-radius: 4px;
+  }
+
+  .prizes-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    width: 100%;
+    max-width: 750px;
+    margin-bottom: 25px;
+  }
+
+  .prize-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .prize-entry label {
+    font-size: 1rem;
+    color: #FFD700;
+    font-weight: bold;
+    text-align: center;
+  }
+
+  .prize-entry input {
+    background: rgba(0,0,0,0.6);
+    border: 1px solid #8B0000;
+    border-radius: 8px;
+    color: #FFD700;
+    padding: 8px 10px;
+    font-size: 0.9rem;
+    text-align: center;
+    transition: border-color 0.2s;
+  }
+
+  .prize-entry input:focus {
+    outline: none;
+    border-color: #FFD700;
+  }
+
+  .btn-start {
+    background: linear-gradient(135deg, #8B0000, #CC0000);
+    color: #FFD700;
+    border: 2px solid #FFD700;
+    padding: 14px 50px;
+    font-size: 1.4rem;
+    border-radius: 50px;
+    cursor: pointer;
+    letter-spacing: 3px;
+    font-weight: bold;
+    transition: all 0.2s;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    box-shadow: 0 0 20px rgba(255,69,0,0.5);
+  }
+
+  .btn-start:hover {
+    background: linear-gradient(135deg, #CC0000, #FF0000);
+    box-shadow: 0 0 35px rgba(255,69,0,0.9);
+    transform: scale(1.04);
+  }
+
+  /* ── Draw Screen ── */
+  #draw-screen {
+    display: none;
+    position: relative;
+    z-index: 10;
+    min-height: 100vh;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+
+  .draw-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 1100px;
+    margin-bottom: 20px;
+  }
+
+  .draw-header .organizer-logo {
+    max-height: 70px;
+    max-width: 180px;
+    object-fit: contain;
+  }
+
+  .draw-title {
+    text-align: center;
+    flex: 1;
+  }
+
+  .draw-title h1 {
+    font-size: 3rem;
+    color: #FFD700;
+    text-shadow: 0 0 30px #FF4500;
+    letter-spacing: 6px;
+  }
+
+  .alphasight-logo-wrap {
+    text-align: right;
+    font-size: 0.8rem;
+    color: #FFA500;
+    opacity: 0.7;
+  }
+
+  /* Cards grid */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  .card {
+    aspect-ratio: 0.7;
+    perspective: 600px;
+    cursor: pointer;
+  }
+
+  .card-inner {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 14px;
+  }
+
+  .card.flipped .card-inner {
+    transform: rotateY(180deg);
+  }
+
+  .card-front, .card-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #FFD700;
+  }
+
+  .card-front {
+    background: linear-gradient(135deg, #8B0000 0%, #4a0000 100%);
+    box-shadow: 0 4px 20px rgba(139,0,0,0.6);
+  }
+
+  .card-front .letter {
+    font-size: 3rem;
+    font-weight: bold;
+    color: #FFD700;
+    text-shadow: 0 0 15px #FF4500;
+  }
+
+  .card-front .tap-hint {
+    font-size: 0.65rem;
+    color: rgba(255,215,0,0.5);
+    margin-top: 6px;
+    letter-spacing: 1px;
+  }
+
+  .card-back {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+    transform: rotateY(180deg);
+    padding: 10px;
+  }
+
+  .card-back .letter-small {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: #8B0000;
+  }
+
+  .card-back .prize-name {
+    font-size: 0.85rem;
+    color: #4a0000;
+    font-weight: bold;
+    text-align: center;
+    line-height: 1.3;
+    word-break: break-all;
+  }
+
+  /* Particle burst canvas overlay */
+  #burst-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* Progress bar */
+  .progress-bar-wrap {
+    width: 100%;
+    max-width: 1100px;
+    background: rgba(139,0,0,0.3);
+    border-radius: 20px;
+    height: 8px;
+    margin-top: 16px;
+    border: 1px solid #8B0000;
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #FFD700, #FFA500);
+    border-radius: 20px;
+    transition: width 0.5s ease;
+    width: 0%;
+  }
+
+  .progress-text {
+    text-align: center;
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: #FFA500;
+  }
+
+  .btn-reset {
+    margin-top: 14px;
+    background: transparent;
+    border: 1px solid #8B0000;
+    color: #8B0000;
+    padding: 6px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+  }
+
+  .btn-reset:hover {
+    border-color: #CC0000;
+    color: #CC0000;
+  }
+
+  /* CNY decorations */
+  .lantern {
+    position: fixed;
+    font-size: 2.5rem;
+    animation: sway 3s ease-in-out infinite;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  .lantern-left  { top: 10px; left: 20px;  animation-delay: 0s; }
+  .lantern-right { top: 10px; right: 20px; animation-delay: 1s; }
+
+  @keyframes sway {
+    0%, 100% { transform: rotate(-8deg); }
+    50%       { transform: rotate(8deg);  }
+  }
+
+  /* Complete overlay */
+  #complete-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  #complete-overlay h2 {
+    font-size: 4rem;
+    color: #FFD700;
+    text-shadow: 0 0 40px #FF4500;
+    animation: pulse 1s ease-in-out infinite;
+    letter-spacing: 6px;
+  }
+
+  #complete-overlay p {
+    color: #FFA500;
+    font-size: 1.2rem;
+    margin-top: 16px;
+  }
+
+  #complete-overlay button {
+    margin-top: 30px;
+    background: linear-gradient(135deg, #8B0000, #CC0000);
+    color: #FFD700;
+    border: 2px solid #FFD700;
+    padding: 12px 40px;
+    font-size: 1.1rem;
+    border-radius: 40px;
+    cursor: pointer;
+    letter-spacing: 2px;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<canvas id="burst-canvas"></canvas>
+<audio id="bg-music" loop></audio>
+<div class="lantern lantern-left">🏮</div>
+<div class="lantern lantern-right">🏮</div>
+
+<!-- ── SETUP SCREEN ── -->
+<div id="setup-screen">
+  <div class="setup-header">
+    <h1>🧧 台獎抽籤 🧧</h1>
+    <p>請輸入獎品名稱，然後開始抽籤</p>
+  </div>
+
+  <div class="logo-row">
+    <div class="logo-box">
+      <label>主辦單位 Logo（上傳圖片或輸入 URL）</label>
+      <input type="file" id="org-logo-file" accept="image/*">
+      <input type="text" id="org-logo-url" placeholder="或貼上圖片 URL" style="margin-top:6px;">
+      <img id="org-logo-preview" class="logo-preview" alt="logo">
+    </div>
+    <div class="logo-box">
+      <label>晚宴枱數（參考用）</label>
+      <input type="number" id="table-count" value="10" min="1" max="999" style="font-size:1.3rem;text-align:center;padding:10px;">
+    </div>
+  </div>
+
+  <div class="prizes-grid" id="prizes-grid">
+    <!-- Filled by JS -->
+  </div>
+
+  <div class="logo-row" style="margin-bottom:20px;">
+    <div class="logo-box" style="min-width:320px;">
+      <label>🎵 背景音樂（上傳 MP3）</label>
+      <input type="file" id="music-file" accept="audio/*">
+      <div id="music-status" style="font-size:0.75rem;color:#FFA500;margin-top:6px;min-height:1rem;"></div>
+    </div>
+  </div>
+
+  <button class="btn-start" onclick="startDraw()">🎉 開始抽獎 🎉</button>
+</div>
+
+<!-- ── DRAW SCREEN ── -->
+<div id="draw-screen">
+  <div class="draw-header">
+    <img id="draw-org-logo" class="organizer-logo" src="" alt="" style="display:none;">
+    <div class="draw-title">
+      <h1>🧧 台獎抽籤 🧧</h1>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+      <button id="btn-mute" onclick="toggleMute()" style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,215,0,0.4);color:#FFD700;border-radius:20px;padding:4px 12px;cursor:pointer;font-size:1rem;">🔊</button>
+      <div class="alphasight-logo-wrap">
+        <div style="font-size:0.7rem;opacity:0.6;">Powered by</div>
+        <div style="font-weight:bold;color:#FFD700;font-size:0.9rem;">AlphaSight</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cards-grid" id="cards-grid"></div>
+
+  <div class="progress-bar-wrap">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+  <div class="progress-text" id="progress-text">點擊卡片揭示獎品</div>
+  <button class="btn-reset" onclick="resetDraw()">↩ 重新設定</button>
+</div>
+
+<!-- ── COMPLETE OVERLAY ── -->
+<div id="complete-overlay">
+  <h2>🎊 恭喜 🎊</h2>
+  <p>所有台獎已抽出！</p>
+  <button onclick="document.getElementById('complete-overlay').style.display='none'">關閉</button>
+</div>
+
+<script>
+// ── Letters A–L ──
+const LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+let prizes = [];
+let revealed = 0;
+let orgLogoSrc = '';
+
+// ── Music ──
+const bgMusic = document.getElementById('bg-music');
+document.getElementById('music-file').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  bgMusic.src = URL.createObjectURL(file);
+  document.getElementById('music-status').textContent = '✅ ' + file.name;
+});
+
+function startMusic() {
+  if (!bgMusic.src) return;
+  bgMusic.volume = 0.55;
+  bgMusic.currentTime = 0;
+  bgMusic.play().catch(() => {});
+}
+
+function stopMusic() {
+  bgMusic.pause();
+  bgMusic.currentTime = 0;
+}
+
+function toggleMute() {
+  bgMusic.muted = !bgMusic.muted;
+  document.getElementById('btn-mute').textContent = bgMusic.muted ? '🔇' : '🔊';
+}
+
+// ── Build prize input grid ──
+const grid = document.getElementById('prizes-grid');
+LETTERS.forEach((l, i) => {
+  const div = document.createElement('div');
+  div.className = 'prize-entry';
+  div.innerHTML = `<label>${l} 座</label><input type="text" id="prize-${l}" placeholder="獎品名稱" value="獎品 ${i+1}">`;
+  grid.appendChild(div);
+});
+
+// ── Logo handling ──
+document.getElementById('org-logo-file').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    orgLogoSrc = e.target.result;
+    const prev = document.getElementById('org-logo-preview');
+    prev.src = orgLogoSrc;
+    prev.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('org-logo-url').addEventListener('input', function() {
+  if (this.value.trim()) {
+    orgLogoSrc = this.value.trim();
+    const prev = document.getElementById('org-logo-preview');
+    prev.src = orgLogoSrc;
+    prev.style.display = 'block';
+  }
+});
+
+// ── Start draw ──
+function startDraw() {
+  prizes = LETTERS.map(l => document.getElementById('prize-'+l).value.trim() || l+'獎');
+  // Shuffle prizes → random assignment to letters
+  const shuffled = [...prizes].sort(() => Math.random() - 0.5);
+
+  document.getElementById('setup-screen').style.display = 'none';
+  const ds = document.getElementById('draw-screen');
+  ds.style.display = 'flex';
+
+  // Set org logo
+  const drawLogo = document.getElementById('draw-org-logo');
+  if (orgLogoSrc) { drawLogo.src = orgLogoSrc; drawLogo.style.display = 'block'; }
+
+  startMusic();
+
+  // Build cards
+  const cardsGrid = document.getElementById('cards-grid');
+  cardsGrid.innerHTML = '';
+  revealed = 0;
+
+  LETTERS.forEach((letter, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'card-' + letter;
+    card.dataset.prize = shuffled[i];
+    card.innerHTML = `
+      <div class="card-inner">
+        <div class="card-front">
+          <div class="letter">${letter}</div>
+          <div class="tap-hint">點擊揭示</div>
+        </div>
+        <div class="card-back">
+          <div class="letter-small">${letter} 座</div>
+          <div class="prize-name">${shuffled[i]}</div>
+        </div>
+      </div>`;
+    card.addEventListener('click', () => flipCard(card));
+    cardsGrid.appendChild(card);
+  });
+
+  updateProgress();
+}
+
+function flipCard(card) {
+  if (card.classList.contains('flipped')) return;
+  card.classList.add('flipped');
+  revealed++;
+
+  // Get card centre for burst
+  const rect = card.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  triggerBurst(cx, cy);
+  playGong();
+  updateProgress();
+
+  if (revealed === 12) {
+    setTimeout(() => {
+      document.getElementById('complete-overlay').style.display = 'flex';
+      triggerFireworks();
+    }, 800);
+  }
+}
+
+function updateProgress() {
+  const pct = (revealed / 12) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-text').textContent = revealed === 0
+    ? '點擊卡片揭示獎品'
+    : `已揭示 ${revealed} / 12`;
+}
+
+function resetDraw() {
+  stopMusic();
+  document.getElementById('draw-screen').style.display = 'none';
+  document.getElementById('setup-screen').style.display = 'flex';
+  document.getElementById('complete-overlay').style.display = 'none';
+}
+
+// ── Web Audio ──
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  return audioCtx;
+}
+
+function playGong() {
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+  // Low resonant strike
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(120, t);
+  osc.frequency.exponentialRampToValueAtTime(60, t + 1.5);
+  gain.gain.setValueAtTime(0.8, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
+  osc.start(t);
+  osc.stop(t + 2.0);
+
+  // High overtone
+  const osc2 = ctx.createOscillator();
+  const gain2 = ctx.createGain();
+  osc2.connect(gain2);
+  gain2.connect(ctx.destination);
+  osc2.type = 'sine';
+  osc2.frequency.setValueAtTime(480, t);
+  osc2.frequency.exponentialRampToValueAtTime(240, t + 0.8);
+  gain2.gain.setValueAtTime(0.3, t);
+  gain2.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+  osc2.start(t);
+  osc2.stop(t + 1.0);
+}
+
+// ── Burst particles ──
+const burstCanvas = document.getElementById('burst-canvas');
+const bCtx = burstCanvas.getContext('2d');
+let particles = [];
+
+function resizeBurst() {
+  burstCanvas.width = window.innerWidth;
+  burstCanvas.height = window.innerHeight;
+}
+resizeBurst();
+window.addEventListener('resize', resizeBurst);
+
+function triggerBurst(cx, cy) {
+  const colors = ['#FFD700','#FF4500','#FF0000','#FFA500','#FFFF00','#FF69B4'];
+  for (let i = 0; i < 60; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 3 + Math.random() * 7;
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      life: 1,
+      decay: 0.02 + Math.random() * 0.02,
+      size: 4 + Math.random() * 6,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      shape: Math.random() > 0.5 ? 'circle' : 'rect'
+    });
+  }
+}
+
+function triggerFireworks() {
+  const count = 8;
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      triggerBurst(
+        100 + Math.random() * (window.innerWidth - 200),
+        50 + Math.random() * (window.innerHeight * 0.6)
+      );
+      playGong();
+    }, i * 300);
+  }
+}
+
+function animateBurst() {
+  bCtx.clearRect(0, 0, burstCanvas.width, burstCanvas.height);
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.life -= p.decay;
+    bCtx.globalAlpha = p.life;
+    bCtx.fillStyle = p.color;
+    bCtx.beginPath();
+    if (p.shape === 'circle') {
+      bCtx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
+    } else {
+      bCtx.rect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+    }
+    bCtx.fill();
+  });
+  bCtx.globalAlpha = 1;
+  requestAnimationFrame(animateBurst);
+}
+animateBurst();
+
+// ── Background animation: falling coins & lanterns ──
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+let bgItems = [];
+
+function resizeBg() {
+  bgCanvas.width = window.innerWidth;
+  bgCanvas.height = window.innerHeight;
+}
+resizeBg();
+window.addEventListener('resize', resizeBg);
+
+function initBgItems() {
+  bgItems = [];
+  const count = 40;
+  const emojis = ['🪙','🧧','✨','🌟','💫'];
+  for (let i = 0; i < count; i++) {
+    bgItems.push({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      vy: 0.4 + Math.random() * 0.8,
+      vx: (Math.random() - 0.5) * 0.3,
+      rot: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.02,
+      size: 16 + Math.random() * 16,
+      emoji: emojis[Math.floor(Math.random() * emojis.length)],
+      alpha: 0.15 + Math.random() * 0.25
+    });
+  }
+}
+initBgItems();
+window.addEventListener('resize', initBgItems);
+
+function animateBg() {
+  bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+  bgItems.forEach(item => {
+    item.x += item.vx;
+    item.y += item.vy;
+    item.rot += item.rotSpeed;
+    if (item.y > bgCanvas.height + 30) {
+      item.y = -30;
+      item.x = Math.random() * bgCanvas.width;
+    }
+    bgCtx.save();
+    bgCtx.globalAlpha = item.alpha;
+    bgCtx.translate(item.x, item.y);
+    bgCtx.rotate(item.rot);
+    bgCtx.font = item.size + 'px serif';
+    bgCtx.textAlign = 'center';
+    bgCtx.textBaseline = 'middle';
+    bgCtx.fillText(item.emoji, 0, 0);
+    bgCtx.restore();
+  });
+  requestAnimationFrame(animateBg);
+}
+animateBg();
+</script>
+</body>
+</html>

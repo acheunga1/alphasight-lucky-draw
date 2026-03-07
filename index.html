@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AlphaSight 抽獎系統</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: Arial, sans-serif;
+    background: #080818;
+    color: #FFD700;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+
+  h1 {
+    font-size: 2.2rem;
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px #4169E1;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+
+  .subtitle {
+    color: #87CEEB;
+    font-size: 0.9rem;
+    margin-bottom: 50px;
+    letter-spacing: 2px;
+    text-align: center;
+  }
+
+  .cards {
+    display: flex;
+    gap: 30px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .app-card {
+    width: 300px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 20px;
+    padding: 30px 24px 24px;
+    text-align: center;
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid rgba(255,215,0,0.2);
+    transition: all 0.25s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .app-card:hover {
+    border-color: #FFD700;
+    background: rgba(255,215,0,0.07);
+    transform: translateY(-6px);
+    box-shadow: 0 12px 40px rgba(255,215,0,0.15);
+  }
+
+  .app-card .icon { font-size: 3.5rem; }
+
+  .app-card h2 {
+    font-size: 1.5rem;
+    letter-spacing: 2px;
+    color: #FFD700;
+  }
+
+  .app-card p {
+    font-size: 0.88rem;
+    color: #87CEEB;
+    line-height: 1.6;
+  }
+
+  .btn-open {
+    margin-top: 8px;
+    padding: 9px 28px;
+    border-radius: 30px;
+    border: 1px solid #FFD700;
+    color: #FFD700;
+    font-size: 0.9rem;
+    background: transparent;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+  }
+
+  .app-card:hover .btn-open {
+    background: #FFD700;
+    color: #080818;
+  }
+
+  footer {
+    margin-top: 60px;
+    font-size: 0.75rem;
+    color: rgba(135,206,235,0.4);
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body>
+  <h1>🎊 AlphaSight 抽獎系統 🎊</h1>
+  <p class="subtitle">選擇抽獎模式</p>
+
+  <div class="cards">
+    <a class="app-card" href="app1-table-seat/index.html">
+      <div class="icon">🧧</div>
+      <h2>台獎抽籤</h2>
+      <p>每台 12 個座位（A–L），隨機抽出各座位對應獎品。配合過年氣氛，逐張揭示。</p>
+      <div class="btn-open">進入 →</div>
+    </a>
+
+    <a class="app-card" href="app2-grand-draw/index.html">
+      <div class="icon">🐎</div>
+      <h2>馬年新春好運大抽獎</h2>
+      <p>兩階段抽獎：第一階段每台必中一次；第二階段重新入池，終極大獎高潮迭起。</p>
+      <div class="btn-open">進入 →</div>
+    </a>
+  </div>
+
+  <footer>Powered by AlphaSight</footer>
+</body>
+</html>

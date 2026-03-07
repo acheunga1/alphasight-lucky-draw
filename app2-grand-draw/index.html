@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>過人獎大抽獎</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: Arial, sans-serif;
+  background: #1a0000;
+  color: #FFD700;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+canvas {
+  position: fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  pointer-events: none;
+}
+#bg-canvas  { z-index:0; }
+#burst-canvas { z-index:100; }
+
+/* ════════════════════════════
+   SETUP SCREEN
+════════════════════════════ */
+#setup-screen {
+  position: relative;
+  z-index: 10;
+  width: 100vw; height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px;
+  overflow-y: auto;
+}
+
+.setup-title {
+  font-size: 2.6rem;
+  color: #FFD700;
+  text-shadow: 0 0 30px #CC0000, 0 0 60px #FF4500;
+  letter-spacing: 4px;
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  width: 100%;
+  max-width: 580px;
+  margin-bottom: 22px;
+}
+
+.config-box {
+  background: rgba(139,0,0,0.12);
+  border: 1px solid rgba(200,50,0,0.4);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.config-box.full { grid-column: 1/-1; }
+
+.config-box label {
+  display: block;
+  font-size: 0.82rem;
+  color: #FFA500;
+  margin-bottom: 7px;
+}
+
+.config-box input[type="number"],
+.config-box input[type="text"],
+.config-box input[type="file"] {
+  width: 100%;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid #8B0000;
+  border-radius: 6px;
+  color: #FFD700;
+  padding: 8px 12px;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.logo-preview {
+  max-height: 55px; max-width: 140px;
+  margin-top: 7px; display: none; border-radius: 4px;
+}
+
+.btn-start {
+  background: linear-gradient(135deg, #6a0000, #CC0000);
+  color: #FFD700;
+  border: 2px solid #FFD700;
+  padding: 14px 50px;
+  font-size: 1.4rem;
+  border-radius: 50px;
+  cursor: pointer;
+  letter-spacing: 3px;
+  font-weight: bold;
+  box-shadow: 0 0 30px rgba(204,0,0,0.6);
+  transition: all 0.2s;
+}
+.btn-start:hover { box-shadow: 0 0 50px rgba(255,50,0,0.9); transform: scale(1.04); }
+
+/* ════════════════════════════
+   DRAW SCREEN  — 16:9 three-panel
+════════════════════════════ */
+#draw-screen {
+  display: none;
+  position: relative;
+  z-index: 10;
+  width: 100vw;
+  height: 100vh;
+  flex-direction: column;
+}
+
+/* ── Top header bar ── */
+.hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px;
+  height: 9vh;
+  border-bottom: 1px solid rgba(255,215,0,0.15);
+  flex-shrink: 0;
+}
+
+.hdr .org-logo {
+  max-height: 6vh; max-width: 14vw;
+  object-fit: contain; display: none;
+}
+
+.hdr-title {
+  text-align: center;
+  flex: 1;
+}
+.hdr-title h1 {
+  font-size: clamp(1.2rem, 2.5vw, 2rem);
+  color: #FFD700;
+  text-shadow: 0 0 20px #CC0000, 0 0 40px #FF4500;
+  letter-spacing: 4px;
+}
+.hdr-title .phase-lbl {
+  font-size: clamp(0.65rem, 1.1vw, 0.9rem);
+  color: #FFA500;
+  letter-spacing: 2px;
+  margin-top: 2px;
+}
+
+.alphasight-badge {
+  text-align: right;
+  font-size: 0.72rem;
+  color: #87CEEB;
+  opacity: 0.7;
+  min-width: 90px;
+}
+
+/* ── Three panels ── */
+.panels {
+  display: flex;
+  flex: 1;
+  height: 91vh;
+  overflow: hidden;
+}
+
+/* Dividers */
+.panel-divider {
+  width: 1px;
+  background: rgba(255,215,0,0.12);
+  flex-shrink: 0;
+}
+
+/* Shared panel base */
+.panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2vh 2vw;
+  position: relative;
+}
+
+/* ── LEFT: Table draw ── */
+.panel-left  { background: rgba(139,0,0,0.08); }
+
+/* ── CENTRE: Prize ── */
+.panel-mid   { background: rgba(80,0,0,0.25); flex: 0 0 32%; }
+
+/* ── RIGHT: Seat draw ── */
+.panel-right { background: rgba(100,0,0,0.1); }
+
+/* Panel section label */
+.section-lbl {
+  font-size: clamp(0.8rem, 1.4vw, 1.1rem);
+  color: #FFA500;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 1.5vh;
+}
+
+/* Slot machine */
+.slot-wrap {
+  position: relative;
+  width: min(28vw, 340px);
+  height: min(17vh, 160px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2vh;
+}
+
+.slot-glow {
+  position: absolute;
+  inset: -8px;
+  border-radius: 18px;
+  box-shadow: 0 0 30px rgba(204,0,0,0.3);
+  transition: box-shadow 0.3s;
+}
+.slot-glow.active {
+  animation: glowPulse 0.15s ease-in-out infinite alternate;
+}
+.slot-glow.gold { box-shadow: 0 0 30px rgba(255,215,0,0.3); }
+.slot-glow.gold.active {
+  animation: glowPulseGold 0.15s ease-in-out infinite alternate;
+}
+
+@keyframes glowPulse {
+  from { box-shadow: 0 0 50px rgba(204,0,0,0.8); }
+  to   { box-shadow: 0 0 90px rgba(255,50,0,1), 0 0 130px rgba(255,215,0,0.3); }
+}
+@keyframes glowPulseGold {
+  from { box-shadow: 0 0 50px rgba(255,150,0,0.8); }
+  to   { box-shadow: 0 0 90px rgba(255,200,0,1), 0 0 130px rgba(255,215,0,0.6); }
+}
+
+.slot-frame {
+  width: 100%; height: 100%;
+  background: rgba(5,5,30,0.92);
+  border: 2px solid #FFD700;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.slot-frame::before {
+  content:'';
+  position: absolute;
+  top:0; left:0; right:0;
+  height: 40%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.05), transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.slot-val {
+  font-size: clamp(3.5rem, 8vw, 7rem);
+  font-weight: 900;
+  color: #FFD700;
+  text-shadow: 0 0 16px #CC0000, 0 0 30px #FF4500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1px;
+  position: relative;
+  z-index: 2;
+}
+
+.slot-val.seat-val {
+  font-size: clamp(3.5rem, 8vw, 7rem);
+  text-shadow: 0 0 16px #CC4400;
+  color: #FFD700;
+}
+
+/* Result tag under slot */
+.result-tag {
+  font-size: clamp(1.2rem, 2.2vw, 1.8rem);
+  font-weight: bold;
+  color: #FFD700;
+  text-shadow: 0 0 16px #FFD700;
+  letter-spacing: 2px;
+  min-height: 2.5rem;
+  text-align: center;
+  transition: opacity 0.3s;
+}
+.result-tag.hidden { opacity: 0; }
+
+/* Draw buttons */
+.btn-draw {
+  width: min(22vw, 240px);
+  height: 6vh;
+  border-radius: 50px;
+  font-size: clamp(1rem, 2vw, 1.4rem);
+  font-weight: bold;
+  letter-spacing: 3px;
+  cursor: pointer;
+  border: 2px solid #FFD700;
+  transition: all 0.15s;
+  margin-top: 1.5vh;
+}
+
+.btn-draw-table {
+  background: linear-gradient(135deg, #4a0000, #CC0000);
+  color: #FFD700;
+  box-shadow: 0 0 20px rgba(204,0,0,0.6);
+}
+.btn-draw-table:hover:not(:disabled) {
+  box-shadow: 0 0 40px rgba(255,50,0,1);
+  transform: scale(1.04);
+}
+
+.btn-draw-seat {
+  background: linear-gradient(135deg, #5c0a0a, #9c1a1a);
+  color: #FFD700;
+  box-shadow: 0 0 20px rgba(204,0,0,0.5);
+}
+.btn-draw-seat:hover:not(:disabled) {
+  box-shadow: 0 0 40px rgba(255,50,0,0.9);
+  transform: scale(1.04);
+}
+
+.btn-draw:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* ── Centre panel content ── */
+.prize-number-wrap {
+  text-align: center;
+  margin-bottom: 2vh;
+}
+
+.prize-lbl-sm {
+  font-size: clamp(0.7rem, 1.2vw, 1rem);
+  color: #FFA500;
+  letter-spacing: 3px;
+  margin-bottom: 0.5vh;
+}
+
+.prize-number {
+  font-size: clamp(4rem, 10vw, 9rem);
+  font-weight: 900;
+  color: #FFD700;
+  text-shadow: 0 0 40px #FFD700, 0 0 80px rgba(255,215,0,0.4);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.prize-name-display {
+  font-size: clamp(0.8rem, 1.5vw, 1.2rem);
+  color: #FFA500;
+  margin-top: 0.5vh;
+  min-height: 1.5rem;
+  text-align: center;
+}
+
+/* Next prize button */
+.btn-next {
+  margin-top: 2vh;
+  padding: 1.2vh 3vw;
+  background: linear-gradient(135deg, #1a5c0a, #2a9c1a);
+  color: #FFD700;
+  border: 2px solid #FFD700;
+  border-radius: 50px;
+  font-size: clamp(0.9rem, 1.6vw, 1.2rem);
+  font-weight: bold;
+  letter-spacing: 2px;
+  cursor: pointer;
+  box-shadow: 0 0 20px rgba(0,200,0,0.4);
+  transition: all 0.15s;
+  display: none;
+}
+.btn-next:hover { box-shadow: 0 0 40px rgba(0,255,0,0.6); transform: scale(1.04); }
+
+/* Pool status */
+.pool-status {
+  font-size: clamp(0.65rem, 1vw, 0.85rem);
+  color: rgba(255,165,0,0.7);
+  text-align: center;
+  margin-top: 1vh;
+  letter-spacing: 1px;
+}
+
+/* History list */
+.history-wrap {
+  width: 100%;
+  margin-top: 2vh;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 28vh;
+}
+
+.history-wrap h4 {
+  font-size: 0.75rem;
+  color: #FFA500;
+  letter-spacing: 2px;
+  text-align: center;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(200,50,0,0.3);
+  padding-bottom: 4px;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 5px;
+  margin-bottom: 3px;
+  font-size: 0.78rem;
+  background: rgba(139,0,0,0.15);
+  border-left: 2px solid #CC0000;
+  animation: slideIn 0.25s ease;
+}
+.history-item.p2 { border-left-color: #FFD700; background: rgba(255,215,0,0.08); }
+
+@keyframes slideIn {
+  from { opacity:0; transform: translateX(-8px); }
+  to   { opacity:1; transform: translateX(0); }
+}
+
+.hi-prize { color: #FFA500; }
+.hi-result { color: #FFD700; font-weight: bold; }
+
+.btn-reset {
+  margin-top: 1.5vh;
+  background: transparent;
+  border: 1px solid rgba(139,0,0,0.4);
+  color: rgba(255,100,0,0.7);
+  padding: 4px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.72rem;
+  transition: all 0.2s;
+}
+.btn-reset:hover { border-color: #CC0000; color: #FFA500; }
+
+/* ── Overlays ── */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.92);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+  padding: 30px;
+}
+
+.overlay h2 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  color: #FFD700;
+  text-shadow: 0 0 40px #CC0000, 0 0 80px #FF4500;
+  letter-spacing: 4px;
+  animation: pulse 1s ease-in-out infinite;
+  margin-bottom: 16px;
+}
+
+.overlay p {
+  color: #FFA500;
+  font-size: clamp(0.9rem, 1.8vw, 1.2rem);
+  margin-bottom: 28px;
+  line-height: 1.8;
+}
+
+.overlay button {
+  background: linear-gradient(135deg, #6a0000, #CC0000);
+  color: #FFD700;
+  border: 2px solid #FFD700;
+  padding: 12px 40px;
+  font-size: 1.1rem;
+  border-radius: 40px;
+  cursor: pointer;
+  letter-spacing: 2px;
+}
+
+@keyframes pulse {
+  0%,100% { transform: scale(1); }
+  50%      { transform: scale(1.05); }
+}
+
+
+@keyframes slotLand {
+  0%   { opacity: 0; transform: scale(1.5); filter: blur(2px); }
+  60%  { opacity: 1; transform: scale(0.95); filter: blur(0); }
+  80%  { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.slot-land {
+  animation: slotLand 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<canvas id="burst-canvas"></canvas>
+<audio id="bg-music" loop></audio>
+<audio id="sfx-drumroll" loop></audio>
+
+<!-- ════════ SETUP ════════ -->
+<div id="setup-screen">
+  <div class="setup-title">🐎 馬年新春好運大抽獎 🐎</div>
+
+  <div class="config-grid">
+    <div class="config-box full" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div>
+        <label>左側 Logo（上傳圖片或 URL）</label>
+        <input type="file" id="org-logo-file" accept="image/*">
+        <input type="text" id="org-logo-url" placeholder="或貼上圖片 URL" style="margin-top:6px;text-align:left;">
+        <img id="org-logo-preview" class="logo-preview" alt="logo">
+      </div>
+      <div>
+        <label>右側 Logo（上傳圖片或 URL）</label>
+        <input type="file" id="org-logo2-file" accept="image/*">
+        <input type="text" id="org-logo2-url" placeholder="或貼上圖片 URL" style="margin-top:6px;text-align:left;">
+        <img id="org-logo2-preview" class="logo-preview" alt="logo2">
+      </div>
+    </div>
+    <div class="config-box">
+      <label>總席數（自動）</label>
+      <input type="number" id="cfg-tables" value="60" readonly style="opacity:0.6;cursor:not-allowed;">
+      <div style="font-size:0.7rem;color:#FFA500;margin-top:5px;line-height:1.5;">
+        共 60 席：紫荊A、紫荊B、紫荊C，再加 1–63（跳過尾數為 4 的席號：4、14、24、34、44、54）
+      </div>
+    </div>
+    <div class="config-box">
+      <label>獎品總數</label>
+      <input type="number" id="cfg-prizes" value="80" min="1" max="999">
+    </div>
+    <div class="config-box full">
+      <label>第二階段從第幾名開始（頂部大獎數量）</label>
+      <input type="number" id="cfg-phase2" value="20" min="1" max="500">
+      <div style="font-size:0.75rem;color:#FFA500;margin-top:4px;">預設：最後 20 份獎品（#20–#1）進入第二階段，所有席數重新入池</div>
+    </div>
+    <div class="config-box full">
+      <label>自定義席名（席號=席名，每行一個）— 可只填有特別名稱的席</label>
+      <textarea id="cfg-table-names" rows="5" placeholder="例如：&#10;1=貴賓席 A&#10;2=貴賓席 B&#10;3=主辦席&#10;10=VIP 席" style="width:100%;background:rgba(0,0,0,0.6);border:1px solid #8B0000;border-radius:6px;color:#FFD700;padding:8px 12px;font-size:0.9rem;resize:vertical;font-family:Arial,sans-serif;"></textarea>
+      <div style="font-size:0.72rem;color:#FFA500;margin-top:4px;">其餘席數顯示為「第 X 席」，填寫後抽獎時會同時顯示席號和席名</div>
+    </div>
+  </div>
+
+  <div style="width:100%;max-width:580px;margin-bottom:14px;">
+    <div class="config-box full">
+      <label>🖼️ 背景圖片（上傳 PNG / JPG — 建議 1920×1080）</label>
+      <input type="file" id="bg-image-file" accept="image/*">
+      <div id="bg-image-status" style="font-size:0.75rem;color:#87CEEB;margin-top:6px;min-height:1rem;"></div>
+    </div>
+  </div>
+
+  <div style="width:100%;max-width:580px;margin-bottom:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+    <div class="config-box">
+      <label>🎵 背景音樂（上傳 MP3）</label>
+      <input type="file" id="music-file" accept="audio/*">
+      <div id="music-status" style="font-size:0.75rem;color:#87CEEB;margin-top:6px;min-height:1rem;"></div>
+    </div>
+    <div class="config-box">
+      <label>🥁 鼓聲音效（上傳 MP3）</label>
+      <input type="file" id="drumroll-file" accept="audio/*">
+      <div id="drumroll-status" style="font-size:0.75rem;color:#87CEEB;margin-top:6px;min-height:1rem;"></div>
+    </div>
+  </div>
+
+  <button class="btn-start" onclick="startDraw()">🎯 開始抽獎 🎯</button>
+</div>
+
+<!-- ════════ DRAW SCREEN ════════ -->
+<div id="draw-screen">
+
+  <!-- Top bar -->
+  <div class="hdr">
+    <div style="display:flex;align-items:center;gap:10px;min-width:16vw;">
+      <img id="draw-org-logo" class="org-logo" src="" alt="">
+      <!-- Default horse emblem shown when no logo uploaded -->
+      <div id="horse-emblem-left" style="font-size:clamp(2rem,5vw,4rem);line-height:1;display:block;">🐎</div>
+    </div>
+    <div class="hdr-title">
+      <h1>🐎 馬年新春好運大抽獎 🐎</h1>
+      <div class="phase-lbl" id="phase-lbl">第一階段 — 每台必中一次</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;min-width:16vw;">
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <button id="btn-mute" onclick="toggleMute()" style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,215,0,0.35);color:#FFD700;border-radius:20px;padding:3px 12px;cursor:pointer;font-size:1rem;">🔊</button>
+        <div class="alphasight-badge">
+          <div style="font-size:0.62rem;opacity:0.6;">Powered by</div>
+          <div style="font-weight:bold;color:#FFD700;">AlphaSight</div>
+        </div>
+      </div>
+      <div id="horse-emblem-right" style="font-size:clamp(2rem,5vw,4rem);line-height:1;display:block;">🐎</div>
+      <img id="draw-org-logo2" class="org-logo" src="" alt="" style="display:none;">
+    </div>
+  </div>
+
+  <!-- Three panels -->
+  <div class="panels">
+
+    <!-- LEFT: Table draw -->
+    <div class="panel panel-left">
+      <div class="section-lbl">台數抽獎</div>
+
+      <div class="slot-wrap">
+        <div class="slot-glow" id="glow-table"></div>
+        <div class="slot-frame">
+          <div class="slot-val" id="val-table">--</div>
+        </div>
+      </div>
+
+      <div id="val-table-name" style="font-size:clamp(0.85rem,1.5vw,1.2rem);color:#FFA500;letter-spacing:2px;min-height:1.4rem;text-align:center;margin-bottom:0.5vh;text-shadow:0 0 10px rgba(255,165,0,0.5);transition:opacity 0.2s;"></div>
+
+      <div class="result-tag hidden" id="res-table"></div>
+
+      <button class="btn-draw btn-draw-table" id="btn-table" onclick="drawTable()">抽 台 數</button>
+    </div>
+
+    <div class="panel-divider"></div>
+
+    <!-- CENTRE: Prize number -->
+    <div class="panel panel-mid">
+      <div class="prize-number-wrap">
+        <div class="prize-lbl-sm">當前獎品</div>
+        <div class="prize-number" id="prize-num">--</div>
+        <div class="prize-name-display" id="prize-name-disp"></div>
+      </div>
+
+      <button class="btn-next" id="btn-next" onclick="nextPrize()">下一個獎品 ▶</button>
+
+      <div class="pool-status" id="pool-status"></div>
+
+      <div class="history-wrap">
+        <h4>抽獎記錄</h4>
+        <div id="history-list"></div>
+      </div>
+
+      <button class="btn-reset" onclick="resetAll()">↩ 重新設定</button>
+    </div>
+
+    <div class="panel-divider"></div>
+
+    <!-- RIGHT: Seat draw -->
+    <div class="panel panel-right">
+      <div class="section-lbl">座位抽獎</div>
+
+      <div class="slot-wrap">
+        <div class="slot-glow gold" id="glow-seat"></div>
+        <div class="slot-frame">
+          <div class="slot-val seat-val" id="val-seat">--</div>
+        </div>
+      </div>
+
+      <div class="result-tag hidden" id="res-seat"></div>
+
+      <button class="btn-draw btn-draw-seat" id="btn-seat" onclick="drawSeat()" disabled>抽 座 位</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Phase 2 overlay -->
+<div class="overlay" id="phase-overlay">
+  <h2>🎊 進入終極大獎！🎊</h2>
+  <p>所有席數已各中獎一次！<br>現在所有席數重新入池<br>開始最終 <span id="phase2-count"></span> 份大獎抽獎！</p>
+  <button onclick="closePhaseOverlay()">繼續抽獎</button>
+</div>
+
+<!-- Final overlay -->
+<div class="overlay" id="final-overlay">
+  <h2>🎉 抽獎完畢！🎉</h2>
+  <p>所有獎品已抽出！恭喜各位得獎者！</p>
+  <button onclick="document.getElementById('final-overlay').style.display='none'">關閉</button>
+</div>
+
+<script>
+// ── Background image ──
+let bgImageSrc = '';
+document.getElementById('bg-image-file').addEventListener('change', function() {
+  const file = this.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    bgImageSrc = e.target.result;
+    document.getElementById('bg-image-status').textContent = '✅ ' + file.name;
+  };
+  reader.readAsDataURL(file);
+});
+
+function applyBgImage() {
+  if (!bgImageSrc) return;
+  document.body.style.backgroundImage = `url('${bgImageSrc}')`;
+  document.body.style.backgroundSize = '100% 100%';
+  document.body.style.backgroundPosition = 'center';
+  document.body.style.backgroundRepeat = 'no-repeat';
+  document.getElementById('bg-canvas').style.opacity = '0.45';
+}
+
+function removeBgImage() {
+  document.body.style.backgroundImage = '';
+  document.getElementById('bg-canvas').style.opacity = '1';
+}
+
+// ── Music ──
+const bgMusic = document.getElementById('bg-music');
+document.getElementById('music-file').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  bgMusic.src = URL.createObjectURL(file);
+  document.getElementById('music-status').textContent = '✅ ' + file.name;
+});
+
+// ── Drumroll SFX ──
+const sfxDrumroll = document.getElementById('sfx-drumroll');
+let drumrollSfxLoaded = false;
+document.getElementById('drumroll-file').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  sfxDrumroll.src = URL.createObjectURL(file);
+  drumrollSfxLoaded = true;
+  document.getElementById('drumroll-status').textContent = '✅ ' + file.name;
+});
+
+function startDrumrollSFX() {
+  if (!drumrollSfxLoaded) return;
+  sfxDrumroll.currentTime = 0;
+  sfxDrumroll.volume = 0.85;
+  sfxDrumroll.play().catch(() => {});
+}
+
+function stopDrumrollSFX() {
+  sfxDrumroll.pause();
+  sfxDrumroll.currentTime = 0;
+}
+
+function startMusic() {
+  if (!bgMusic.src) return;
+  bgMusic.volume = 0.55;
+  bgMusic.currentTime = 0;
+  bgMusic.play().catch(() => {});
+}
+
+function stopMusic() {
+  bgMusic.pause();
+  bgMusic.currentTime = 0;
+}
+
+function duckMusic() {
+  // Smoothly lower volume during drumroll
+  bgMusic.volume = 0.1;
+}
+
+function unduckMusic() {
+  bgMusic.volume = 0.55;
+}
+
+function toggleMute() {
+  bgMusic.muted = !bgMusic.muted;
+  document.getElementById('btn-mute').textContent = bgMusic.muted ? '🔇' : '🔊';
+}
+
+// ── State ──
+const SEATS = [1,2,3,4,5,6,7,8,9,10,11,12];
+let cfg = {};
+let pool1 = [], pool2 = [];
+let currentPrize = 0, phase = 1;
+let orgLogoSrc = '';
+let prizeNames = {};
+// Draw state machine: idle | table_spin | seat_ready | seat_spin | result
+let drawState = 'idle';
+let currentTable = null, currentSeat = null;
+
+// ── Logo ──
+let orgLogo2Src = '';
+
+document.getElementById('org-logo-file').addEventListener('change', function() {
+  const file = this.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { orgLogoSrc = e.target.result; showLogoPreview(orgLogoSrc); };
+  reader.readAsDataURL(file);
+});
+document.getElementById('org-logo-url').addEventListener('input', function() {
+  if (this.value.trim()) { orgLogoSrc = this.value.trim(); showLogoPreview(orgLogoSrc); }
+});
+document.getElementById('org-logo2-file').addEventListener('change', function() {
+  const file = this.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { orgLogo2Src = e.target.result; showLogo2Preview(orgLogo2Src); };
+  reader.readAsDataURL(file);
+});
+document.getElementById('org-logo2-url').addEventListener('input', function() {
+  if (this.value.trim()) { orgLogo2Src = this.value.trim(); showLogo2Preview(orgLogo2Src); }
+});
+
+function showLogoPreview(src) {
+  const p = document.getElementById('org-logo-preview');
+  p.src = src; p.style.display = 'block';
+}
+function showLogo2Preview(src) {
+  const p = document.getElementById('org-logo2-preview');
+  p.src = src; p.style.display = 'block';
+}
+
+// ── Table list: 紫荊A/B/C + 1–63 skipping numbers ending in 4 = 60 tables ──
+function generateTableList() {
+  const list = ['紫荊A', '紫荊B', '紫荊C'];
+  for (let n = 1; n <= 64; n++) {
+    if (n % 10 !== 4) list.push(String(n));
+  }
+  return list; // 3 + 57 = 60
+}
+
+// ── Start ──
+function startDraw() {
+  cfg.tables   = parseInt(document.getElementById('cfg-tables').value)  || 60;
+  cfg.prizes   = parseInt(document.getElementById('cfg-prizes').value)  || 80;
+  cfg.phase2At = parseInt(document.getElementById('cfg-phase2').value)  || 20;
+
+  // Parse custom table names — supports both newline and space-separated formats
+  cfg.tableNames = {};
+  const tnRaw = document.getElementById('cfg-table-names').value
+    .replace(/\s+(?=\d+\s*=)/g, '\n'); // normalise "1=A 2=B" → "1=A\n2=B"
+  tnRaw.split('\n').forEach(line => {
+    const m = line.match(/^(\d+)\s*=\s*(.+)$/);
+    if (m) cfg.tableNames[parseInt(m[1])] = m[2].trim();
+  });
+
+  cfg.tableList = generateTableList();
+  cfg.tables = cfg.tableList.length; // 60
+  pool1 = [...cfg.tableList];
+  shuffleArray(pool1);
+  pool2 = [...cfg.tableList];
+  currentPrize = cfg.prizes;
+  phase = 1;
+  drawState = 'idle';
+  currentTable = null; currentSeat = null;
+
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('draw-screen').style.display = 'flex';
+
+  applyBgImage();
+  startMusic();
+
+  if (orgLogoSrc) {
+    const el = document.getElementById('draw-org-logo');
+    el.src = orgLogoSrc; el.style.display = 'block';
+    document.getElementById('horse-emblem-left').style.display = 'none';
+  } else {
+    document.getElementById('horse-emblem-left').style.display = 'block';
+  }
+  if (orgLogo2Src) {
+    const el2 = document.getElementById('draw-org-logo2');
+    el2.src = orgLogo2Src; el2.style.display = 'block';
+    document.getElementById('horse-emblem-right').style.display = 'none';
+  } else {
+    document.getElementById('horse-emblem-right').style.display = 'block';
+  }
+
+  resetSlots();
+  updateUI();
+}
+
+function resetSlots() {
+  const vt = document.getElementById('val-table');
+  const vs = document.getElementById('val-seat');
+  vt.textContent = '--'; vt.classList.remove('slot-land');
+  vs.textContent = '--'; vs.classList.remove('slot-land');
+  document.getElementById('val-table-name').textContent = '';
+  document.getElementById('res-table').textContent = '';
+  document.getElementById('res-table').classList.add('hidden');
+  document.getElementById('res-seat').textContent  = '';
+  document.getElementById('res-seat').classList.add('hidden');
+}
+
+function updateUI() {
+  // Phase label
+  document.getElementById('phase-lbl').textContent = phase === 1
+    ? `第一階段 — 每台必中一次（剩餘 ${pool1.length} 席未抽）`
+    : `第二階段 — 終極大獎（可重複）`;
+
+  // Prize display
+  document.getElementById('prize-num').textContent = currentPrize > 0 ? `#${currentPrize}` : '--';
+  document.getElementById('prize-name-disp').textContent = prizeNames[currentPrize] || '';
+
+  // Pool status
+  document.getElementById('pool-status').textContent = phase === 1
+    ? `池中：${pool1.length} / ${cfg.tables} 席`
+    : `池中：所有 ${cfg.tables} 席（可重複）`;
+
+  // Button states
+  const btnTable = document.getElementById('btn-table');
+  const btnSeat  = document.getElementById('btn-seat');
+  const btnNext  = document.getElementById('btn-next');
+
+  if (drawState === 'idle') {
+    btnTable.disabled = (currentPrize <= 0);
+    btnSeat.disabled  = true;
+    btnNext.style.display = 'none';
+  } else if (drawState === 'table_spin') {
+    btnTable.disabled = true;
+    btnSeat.disabled  = true;
+    btnNext.style.display = 'none';
+  } else if (drawState === 'seat_ready') {
+    btnTable.disabled = true;
+    btnSeat.disabled  = false;
+    btnNext.style.display = 'none';
+  } else if (drawState === 'seat_spin') {
+    btnTable.disabled = true;
+    btnSeat.disabled  = true;
+    btnNext.style.display = 'none';
+  } else if (drawState === 'result') {
+    btnTable.disabled = true;
+    btnSeat.disabled  = true;
+    btnNext.style.display = (currentPrize > 0) ? 'inline-block' : 'none';
+  }
+}
+
+// ── Table Draw ──
+function drawTable() {
+  if (drawState !== 'idle' || currentPrize <= 0) return;
+
+  let tableNum;
+  if (phase === 1) {
+    if (pool1.length === 0) return;
+    tableNum = pool1.splice(Math.floor(Math.random() * pool1.length), 1)[0];
+  } else {
+    tableNum = pool2[Math.floor(Math.random() * pool2.length)];
+  }
+  currentTable = tableNum;
+
+  drawState = 'table_spin';
+  document.getElementById('res-table').classList.add('hidden');
+  updateUI();
+
+  const isHighStakes = currentPrize <= cfg.phase2At;
+  const duration = currentPrize <= 10 ? 2500 : currentPrize <= 20 ? 1600 : 1000;
+  duckMusic();
+  if (drumrollSfxLoaded) { startDrumrollSFX(); } else { playDrumroll(duration, isHighStakes); }
+
+  const nameEl = document.getElementById('val-table-name');
+  const cnyEmojis = ['🐎','🧧','🏮','🪙','🎊','🌸','🎋','🎆','💮','🐴','🦁','🎇','🍊','🎐','🔴'];
+  const cnyPhrases = ['恭喜發財','新春快樂','馬到成功','大吉大利','萬事如意','金玉滿堂','鴻運當頭','步步高升'];
+  const fakeTableFn = () => {
+    nameEl.textContent = cnyPhrases[Math.floor(Math.random() * cnyPhrases.length)];
+    return cnyEmojis[Math.floor(Math.random() * cnyEmojis.length)];
+  };
+
+  // tableNum is a string from tableList ("紫荊A", "5", etc.)
+  const numKey = parseInt(tableNum);
+  const isNumericTable = !isNaN(numKey) && String(numKey) === tableNum;
+  const customName = isNumericTable && cfg.tableNames[numKey] ? cfg.tableNames[numKey] : null;
+  const tableTarget = customName || tableNum; // show custom name if set, else the table string itself
+
+  animateSlot('val-table', 'glow-table', fakeTableFn,
+    tableTarget, duration, () => {
+      stopDrumrollSFX();
+      unduckMusic();
+      playCymbal(false);
+      // nameEl: show table number below if custom name overrode the slot display
+      nameEl.textContent = customName ? `第 ${tableNum} 席` : '';
+      const valTableEl = document.getElementById('val-table');
+      valTableEl.classList.remove('slot-land');
+      void valTableEl.offsetWidth;
+      valTableEl.classList.add('slot-land');
+      const rt = document.getElementById('res-table');
+      rt.textContent = customName
+        ? `第 ${tableNum} 席　${customName}`
+        : (isNumericTable ? `第 ${tableNum} 席` : tableNum);
+      rt.classList.remove('hidden');
+
+      const el = document.getElementById('val-table');
+      const rect = el.getBoundingClientRect();
+      triggerBurst(rect.left + rect.width/2, rect.top + rect.height/2, false);
+
+      drawState = 'seat_ready';
+      updateUI();
+    });
+}
+
+// ── Seat Draw ──
+function drawSeat() {
+  if (drawState !== 'seat_ready') return;
+
+  const seat = SEATS[Math.floor(Math.random() * SEATS.length)];
+  currentSeat = seat;
+
+  drawState = 'seat_spin';
+  document.getElementById('res-seat').classList.add('hidden');
+  updateUI();
+
+  const isHighStakes = currentPrize <= cfg.phase2At;
+  const duration = currentPrize <= 10 ? 2200 : currentPrize <= 20 ? 1400 : 900;
+  duckMusic();
+  if (drumrollSfxLoaded) { startDrumrollSFX(); } else { playDrumroll(duration, isHighStakes); }
+
+  const seatEmojis = ['🐎','🧧','🏮','🪙','🎊','🌸','🎆','💮','🐴','🎇','🍊','🔴','⭐','🎋','🦁'];
+  animateSlot('val-seat', 'glow-seat', () => seatEmojis[Math.floor(Math.random()*seatEmojis.length)],
+    seat, duration, () => {
+      // Seat landed
+      stopDrumrollSFX();
+      unduckMusic();
+      playCymbal(isHighStakes);
+      const valSeatEl = document.getElementById('val-seat');
+      valSeatEl.classList.remove('slot-land');
+      void valSeatEl.offsetWidth;
+      valSeatEl.classList.add('slot-land');
+      const rs = document.getElementById('res-seat');
+      rs.textContent = `${seat} 號`;
+      rs.classList.remove('hidden');
+
+      const el = document.getElementById('val-seat');
+      const rect = el.getBoundingClientRect();
+      triggerBurst(rect.left + rect.width/2, rect.top + rect.height/2, isHighStakes);
+
+      addHistory(currentPrize, currentTable, currentSeat);
+      drawState = 'result';
+      updateUI();
+
+      // Check if all done
+      if (currentPrize <= 1) {
+        setTimeout(() => {
+          document.getElementById('final-overlay').style.display = 'flex';
+          triggerFireworks();
+        }, 1500);
+      }
+    });
+}
+
+// ── Next Prize ──
+function nextPrize() {
+  currentPrize--;
+  currentTable = null; currentSeat = null;
+
+  // Phase transition check: phase 1 ends when pool1 is exhausted
+  if (phase === 1 && pool1.length === 0 && currentPrize > 0) {
+    phase = 2;
+    pool2 = [...cfg.tableList];
+    document.getElementById('phase2-count').textContent = currentPrize;
+    drawState = 'idle';
+    resetSlots();
+    updateUI();
+    setTimeout(() => {
+      document.getElementById('phase-overlay').style.display = 'flex';
+      triggerFireworks();
+    }, 300);
+    return;
+  }
+
+  drawState = 'idle';
+  resetSlots();
+  updateUI();
+}
+
+function closePhaseOverlay() {
+  document.getElementById('phase-overlay').style.display = 'none';
+}
+
+function addHistory(prizeNum, table, seat) {
+  const list = document.getElementById('history-list');
+  const item = document.createElement('div');
+  item.className = 'history-item' + (phase === 2 ? ' p2' : '');
+  const name = prizeNames[prizeNum] ? ` ${prizeNames[prizeNum]}` : '';
+  const tNum = parseInt(table);
+  const isNum = !isNaN(tNum) && String(tNum) === String(table);
+  const customTName = isNum && cfg.tableNames && cfg.tableNames[tNum] ? ` ${cfg.tableNames[tNum]}` : '';
+  const tableDisp = customTName ? `第${table}席${customTName}` : (isNum ? `第${table}席` : table);
+  item.innerHTML = `<span class="hi-prize">#${prizeNum}${name}</span><span class="hi-result">${tableDisp} ${seat}號</span>`;
+  list.insertBefore(item, list.firstChild);
+}
+
+function resetAll() {
+  stopMusic();
+  stopDrumrollSFX();
+  removeBgImage();
+  document.getElementById('draw-screen').style.display = 'none';
+  document.getElementById('setup-screen').style.display = 'flex';
+  document.getElementById('history-list').innerHTML = '';
+  document.getElementById('phase-overlay').style.display = 'none';
+  document.getElementById('final-overlay').style.display = 'none';
+  drawState = 'idle';
+}
+
+function shuffleArray(arr) {
+  for (let i = arr.length-1; i>0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+}
+
+// ── Generic slot animator ──
+function animateSlot(valId, glowId, fakeFn, target, duration, onDone) {
+  const el   = document.getElementById(valId);
+  const glow = document.getElementById(glowId);
+  glow.classList.add('active');
+
+  const start = performance.now();
+
+  function tick(now) {
+    const elapsed  = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+
+    if (progress < 1) {
+      // Power-12 ease: stays at 60fps until ~85%, then drops dramatically
+      const interval = Math.pow(progress, 12) * 200;
+      el.textContent = fakeFn();
+      // Motion blur during fast phase — makes it look faster than 60fps
+      const blur = interval < 20 ? 1 : 0;
+      el.style.filter = blur > 0 ? `blur(${blur}px)` : '';
+      if (interval < 16) {
+        requestAnimationFrame(tick);
+      } else {
+        setTimeout(() => requestAnimationFrame(tick), interval - 16);
+      }
+    } else {
+      el.textContent = target;
+      el.style.filter = '';
+      glow.classList.remove('active');
+      onDone();
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+// ── Web Audio ──
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+function getCtx() { if (!audioCtx) audioCtx = new AudioCtx(); return audioCtx; }
+
+function playDrumroll(duration, highStakes) {
+  const ctx = getCtx();
+  const endTime = ctx.currentTime + duration / 1000;
+  function hit(t, vol) {
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.04, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i=0; i<data.length; i++) data[i]=(Math.random()*2-1)*Math.exp(-i/(ctx.sampleRate*0.015));
+    const src = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = highStakes ? 180 : 300;
+    filter.Q.value = 1.5;
+    src.buffer = buf;
+    src.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(vol, t);
+    src.start(t);
+  }
+  let t = ctx.currentTime;
+  while (t < endTime - 0.3) {
+    const progress = (t - ctx.currentTime) / (duration / 1000);
+    const interval = Math.max(0.028, 0.18 - progress * 0.15);
+    hit(t, 0.3 + progress * 0.5);
+    t += interval;
+  }
+}
+
+function playCymbal(big) {
+  const ctx = getCtx(); const t = ctx.currentTime; const dur = big ? 3.0 : 1.5;
+  const buf = ctx.createBuffer(1, ctx.sampleRate*dur, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i=0; i<data.length; i++) data[i]=Math.random()*2-1;
+  const src = ctx.createBufferSource();
+  const gain = ctx.createGain();
+  const hipass = ctx.createBiquadFilter();
+  hipass.type = 'highpass'; hipass.frequency.value = 5000;
+  src.buffer = buf; src.connect(hipass); hipass.connect(gain); gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(big ? 0.6 : 0.3, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t+dur);
+  src.start(t);
+  if (big) {
+    [523,659,784,1047].forEach((freq,i) => {
+      const osc = ctx.createOscillator(); const g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.type = 'triangle'; osc.frequency.value = freq;
+      g.gain.setValueAtTime(0, t+i*0.12);
+      g.gain.linearRampToValueAtTime(0.25, t+i*0.12+0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, t+i*0.12+0.6);
+      osc.start(t+i*0.12); osc.stop(t+i*0.12+0.6);
+    });
+  }
+}
+
+// ── Particles ──
+const burstCanvas = document.getElementById('burst-canvas');
+const bCtx = burstCanvas.getContext('2d');
+let particles = [];
+
+function resizeBurst() { burstCanvas.width=window.innerWidth; burstCanvas.height=window.innerHeight; }
+resizeBurst(); window.addEventListener('resize', resizeBurst);
+
+function triggerBurst(cx, cy, big) {
+  const colors = big
+    ? ['#FFD700','#FFFF00','#FFA500','#FF4500','#FFFFFF','#87CEEB']
+    : ['#FFD700','#4169E1','#87CEEB','#FFFFFF','#FFA500'];
+  const count = big ? 120 : 70;
+  for (let i=0; i<count; i++) {
+    const angle = Math.random()*Math.PI*2;
+    const speed = (big?5:3) + Math.random()*(big?10:7);
+    particles.push({
+      x:cx, y:cy, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed-(big?4:2),
+      life:1, decay:0.012+Math.random()*0.015,
+      size:(big?6:4)+Math.random()*6,
+      color:colors[Math.floor(Math.random()*colors.length)],
+      shape:Math.random()>0.5?'circle':'rect'
+    });
+  }
+}
+
+function triggerFireworks() {
+  for (let i=0; i<12; i++) {
+    setTimeout(() => {
+      triggerBurst(100+Math.random()*(window.innerWidth-200), 50+Math.random()*(window.innerHeight*0.6), true);
+    }, i*300);
+  }
+}
+
+function animateBurst() {
+  bCtx.clearRect(0,0,burstCanvas.width,burstCanvas.height);
+  particles = particles.filter(p=>p.life>0);
+  particles.forEach(p => {
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.12; p.life-=p.decay;
+    bCtx.globalAlpha=p.life; bCtx.fillStyle=p.color; bCtx.beginPath();
+    if (p.shape==='circle') bCtx.arc(p.x,p.y,p.size/2,0,Math.PI*2);
+    else bCtx.rect(p.x-p.size/2,p.y-p.size/2,p.size,p.size);
+    bCtx.fill();
+  });
+  bCtx.globalAlpha=1;
+  requestAnimationFrame(animateBurst);
+}
+animateBurst();
+
+// ── CNY Year of the Horse background ──
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+let bgItems = [], bgT = 0;
+
+function resizeBg() { bgCanvas.width=window.innerWidth; bgCanvas.height=window.innerHeight; initBgItems(); }
+function initBgItems() {
+  bgItems = [];
+  const emojis = ['🐎','🧧','🌸','🪙','✨','🌟','🎊','💮','🐴','🎍'];
+  for (let i = 0; i < 55; i++) {
+    bgItems.push({
+      x: Math.random() * bgCanvas.width,
+      y: Math.random() * bgCanvas.height,
+      vy: 0.3 + Math.random() * 0.7,
+      vx: (Math.random() - 0.5) * 0.4,
+      rot: Math.random() * Math.PI * 2,
+      rotSpd: (Math.random() - 0.5) * 0.018,
+      size: 14 + Math.random() * 20,
+      emoji: emojis[Math.floor(Math.random() * emojis.length)],
+      alpha: 0.12 + Math.random() * 0.22
+    });
+  }
+}
+resizeBg(); window.addEventListener('resize', resizeBg);
+
+function animateBg() {
+  bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+  bgT += 0.02;
+  // Red radial glow
+  const grd = bgCtx.createRadialGradient(
+    bgCanvas.width/2, bgCanvas.height/2, 40,
+    bgCanvas.width/2, bgCanvas.height/2, Math.min(bgCanvas.width,bgCanvas.height)*0.75
+  );
+  grd.addColorStop(0, 'rgba(180,0,0,0.14)');
+  grd.addColorStop(0.5, 'rgba(100,0,0,0.07)');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  bgCtx.fillStyle = grd;
+  bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+  bgItems.forEach(item => {
+    item.x += item.vx; item.y += item.vy; item.rot += item.rotSpd;
+    if (item.y > bgCanvas.height + 30) { item.y = -30; item.x = Math.random() * bgCanvas.width; }
+    bgCtx.save();
+    bgCtx.globalAlpha = item.alpha;
+    bgCtx.translate(item.x, item.y);
+    bgCtx.rotate(item.rot);
+    bgCtx.font = item.size + 'px serif';
+    bgCtx.textAlign = 'center';
+    bgCtx.textBaseline = 'middle';
+    bgCtx.fillText(item.emoji, 0, 0);
+    bgCtx.restore();
+  });
+  requestAnimationFrame(animateBg);
+}
+animateBg();
+</script>
+</body>
+</html>
