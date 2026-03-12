@@ -1821,10 +1821,11 @@ animateBg();
         viewerSpinStart(se.slot);
       } else if (se.type === 'spin-end') {
         const slot = se.slot, val = se.value, res = se.resultText, tname = se.tableName || '';
+        const delay = currentPrize <= 10 ? 10000 : currentPrize <= 20 ? 7000 : 4000;
         setTimeout(() => {
           viewerAnimating.delete(slot);
           viewerSpinEnd(slot, val, res, tname);
-        }, 1000);
+        }, delay);
       }
     }
   }
@@ -1879,11 +1880,12 @@ function viewerSpinStart(slot) {
     el.style.filter = fast ? 'blur(1px)' : '';
     if (tick > 20) fast = false;
   }, fast ? 60 : 120);
-  // Play drumroll sound (2s covers the 1s extra spin delay)
+  // Play drumroll sound (tier-aware duration)
+  const rollDur = currentPrize <= 10 ? 10000 : currentPrize <= 20 ? 7000 : 4000;
   if (drumrollSfxLoaded) {
     sfxDrumroll.currentTime = 0; sfxDrumroll.volume = viewerVolume; sfxDrumroll.play().catch(() => {});
   } else {
-    playDrumroll(2000, false);
+    playDrumroll(rollDur, currentPrize <= 20);
   }
   duckMusic();
 }
