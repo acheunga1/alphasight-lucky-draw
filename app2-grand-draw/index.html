@@ -579,6 +579,16 @@ canvas {
 .slot-land {
   animation: slotLand 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
 }
+
+/* Viewer mode: 40% larger slot boxes */
+body.viewer-mode .slot-wrap {
+  width: min(25.9vw, 339px);
+  height: min(25.2vh, 232px);
+}
+body.viewer-mode .slot-val,
+body.viewer-mode .slot-val.seat-val {
+  font-size: clamp(4.9rem, 11.2vw, 9.8rem);
+}
 </style>
 <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
 </head>
@@ -1611,6 +1621,7 @@ animateBg();
   // Show draw screen immediately
   document.getElementById('setup-screen').style.display = 'none';
   document.getElementById('draw-screen').style.display = 'flex';
+  document.body.classList.add('viewer-mode');
 
   // Apply any locally saved backdrop right away
   applyBgImage();
