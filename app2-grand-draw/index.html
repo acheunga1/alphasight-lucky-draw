@@ -580,6 +580,40 @@ canvas {
   animation: slotLand 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
 }
 
+/* Viewer sound panel */
+#viewer-sound-panel {
+  display: none;
+  position: fixed;
+  bottom: 18px; right: 18px;
+  background: rgba(10,10,40,0.92);
+  border: 1px solid rgba(255,215,0,0.4);
+  border-radius: 12px;
+  padding: 12px 16px;
+  z-index: 999;
+  color: #FFD700;
+  font-size: 0.8rem;
+  min-width: 200px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+}
+#viewer-sound-panel label { display: block; margin-bottom: 4px; font-size: 0.75rem; color: #aaa; }
+#viewer-sound-panel input[type=range] { width: 100%; accent-color: #FFD700; margin-top: 6px; }
+#viewer-sound-panel input[type=file] { font-size: 0.72rem; color: #ccc; width: 100%; }
+#viewer-sound-toggle {
+  position: fixed;
+  bottom: 18px; right: 18px;
+  background: rgba(10,10,40,0.85);
+  border: 1px solid rgba(255,215,0,0.4);
+  border-radius: 50%;
+  width: 42px; height: 42px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  z-index: 1000;
+  display: none;
+  align-items: center; justify-content: center;
+  color: #FFD700;
+}
+body.viewer-mode #viewer-sound-toggle { display: flex; }
+
 /* Viewer mode: 40% larger slot boxes */
 body.viewer-mode .slot-wrap {
   width: min(25.9vw, 339px);
@@ -766,6 +800,17 @@ body.viewer-mode .slot-val.seat-val {
   </div>
 </div>
 
+<!-- Viewer sound panel -->
+<button id="viewer-sound-toggle" onclick="toggleViewerSoundPanel()" title="Sound settings">🔊</button>
+<div id="viewer-sound-panel">
+  <div style="font-weight:700;margin-bottom:10px;color:#FFD700;">🥁 聲效設定</div>
+  <label>上傳鼓聲 MP3</label>
+  <input type="file" id="viewer-drumroll-file" accept="audio/*">
+  <div id="viewer-drumroll-status" style="font-size:0.7rem;color:#87CEEB;margin:4px 0 10px;min-height:1rem;"></div>
+  <label>音量 <span id="viewer-vol-label">85%</span></label>
+  <input type="range" id="viewer-vol-slider" min="0" max="100" value="85">
+</div>
+
 <!-- Phase 2 overlay -->
 <div class="overlay" id="phase-overlay">
   <h2>🎊 進入終極大獎！🎊</h2>
@@ -856,6 +901,30 @@ document.getElementById('drumroll-file').addEventListener('change', function() {
   sfxDrumroll.src = URL.createObjectURL(file);
   drumrollSfxLoaded = true;
   document.getElementById('drumroll-status').textContent = '✅ ' + file.name;
+});
+
+// ── Viewer sound panel ──
+let viewerVolume = 0.85;
+function toggleViewerSoundPanel() {
+  const panel = document.getElementById('viewer-sound-panel');
+  const btn   = document.getElementById('viewer-sound-toggle');
+  const open  = panel.style.display === 'block';
+  panel.style.display = open ? 'none' : 'block';
+  // shift toggle button up when panel is open
+  btn.style.bottom = open ? '18px' : (panel.offsetHeight + 28) + 'px';
+}
+document.getElementById('viewer-drumroll-file').addEventListener('change', function() {
+  const file = this.files[0]; if (!file) return;
+  sfxDrumroll.src = URL.createObjectURL(file);
+  drumrollSfxLoaded = true;
+  document.getElementById('viewer-drumroll-status').textContent = '✅ ' + file.name;
+  // unlock audio context
+  getCtx();
+});
+document.getElementById('viewer-vol-slider').addEventListener('input', function() {
+  viewerVolume = this.value / 100;
+  document.getElementById('viewer-vol-label').textContent = this.value + '%';
+  sfxDrumroll.volume = viewerVolume;
 });
 
 // ── Auto-load default assets from assets/ folder ──
@@ -1794,7 +1863,7 @@ function viewerSpinStart(slot) {
   }, fast ? 60 : 120);
   // Play drumroll sound (2s covers the 1s extra spin delay)
   if (drumrollSfxLoaded) {
-    sfxDrumroll.currentTime = 0; sfxDrumroll.volume = 0.85; sfxDrumroll.play().catch(() => {});
+    sfxDrumroll.currentTime = 0; sfxDrumroll.volume = viewerVolume; sfxDrumroll.play().catch(() => {});
   } else {
     playDrumroll(2000, false);
   }
