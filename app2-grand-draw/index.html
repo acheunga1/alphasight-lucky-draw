@@ -160,11 +160,29 @@ canvas {
   min-width: 90px;
 }
 
+/* Floating draw-screen overlays */
+.draw-floats {
+  position: absolute;
+  top: 10px; right: 14px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.draw-logos {
+  position: absolute;
+  top: 10px; left: 14px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* ── Three panels ── */
 .panels {
   display: flex;
   flex: 1;
-  height: 91vh;
+  height: 100vh;
   overflow: hidden;
 }
 
@@ -187,13 +205,13 @@ canvas {
 }
 
 /* ── LEFT: Table draw ── */
-.panel-left  { background: rgba(139,0,0,0.08); }
+.panel-left  { background: rgba(139,0,0,0.08); justify-content: flex-end; padding-bottom: 8vh; }
 
 /* ── CENTRE: Prize ── */
 .panel-mid   { background: rgba(80,0,0,0.25); flex: 0 0 32%; }
 
 /* ── RIGHT: Seat draw ── */
-.panel-right { background: rgba(100,0,0,0.1); }
+.panel-right { background: rgba(100,0,0,0.1); justify-content: flex-end; padding-bottom: 8vh; }
 
 /* Panel section label */
 .section-lbl {
@@ -344,20 +362,30 @@ canvas {
   margin-bottom: 0.5vh;
 }
 
-.prize-number {
-  font-size: clamp(4rem, 10vw, 9rem);
+.prize-name-big {
+  font-size: clamp(2.5rem, 5.5vw, 6rem);
   font-weight: 900;
   color: #FFD700;
   text-shadow: 0 0 40px #FFD700, 0 0 80px rgba(255,215,0,0.4);
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  text-align: center;
+  word-break: break-word;
 }
 
-.prize-name-display {
-  font-size: clamp(0.8rem, 1.5vw, 1.2rem);
+.prize-sponsor-disp {
+  font-size: clamp(1.2rem, 2.5vw, 2.5rem);
   color: #FFA500;
-  margin-top: 0.5vh;
-  min-height: 1.5rem;
+  text-align: center;
+  margin-top: 1vh;
+  text-shadow: 0 0 10px rgba(255,165,0,0.5);
+  word-break: break-word;
+}
+
+.prize-num-small {
+  font-size: clamp(0.7rem, 1.2vw, 1rem);
+  color: rgba(255,165,0,0.7);
+  letter-spacing: 3px;
+  margin-bottom: 0.5vh;
   text-align: center;
 }
 
@@ -499,6 +527,7 @@ canvas {
   animation: slotLand 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
 }
 </style>
+<script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -551,6 +580,11 @@ canvas {
 
   <div style="width:100%;max-width:580px;margin-bottom:14px;">
     <div class="config-box full">
+      <label>🏆 獎品列表（上傳 Excel .xlsx）</label>
+      <input type="file" id="prizes-file" accept=".xlsx,.xls">
+      <div id="prizes-status" style="font-size:0.75rem;color:#87CEEB;margin-top:6px;min-height:1rem;"></div>
+    </div>
+    <div class="config-box full">
       <label>🖼️ 背景圖片（上傳 PNG / JPG — 建議 1920×1080）</label>
       <input type="file" id="bg-image-file" accept="image/*">
       <div id="bg-image-status" style="font-size:0.75rem;color:#87CEEB;margin-top:6px;min-height:1rem;"></div>
@@ -576,28 +610,18 @@ canvas {
 <!-- ════════ DRAW SCREEN ════════ -->
 <div id="draw-screen">
 
-  <!-- Top bar -->
-  <div class="hdr">
-    <div style="display:flex;align-items:center;gap:10px;min-width:16vw;">
-      <img id="draw-org-logo" class="org-logo" src="" alt="">
-      <!-- Default horse emblem shown when no logo uploaded -->
-      <div id="horse-emblem-left" style="font-size:clamp(2rem,5vw,4rem);line-height:1;display:block;">🐎</div>
+  <!-- Floating controls top-right -->
+  <div class="draw-floats">
+    <button id="btn-mute" onclick="toggleMute()" style="background:rgba(0,0,0,0.5);border:1px solid rgba(255,215,0,0.35);color:#FFD700;border-radius:20px;padding:4px 14px;cursor:pointer;font-size:1rem;">🔊</button>
+    <div class="alphasight-badge">
+      <div style="font-size:0.62rem;opacity:0.6;">Powered by</div>
+      <div style="font-weight:bold;color:#FFD700;">AlphaSight</div>
     </div>
-    <div class="hdr-title">
-      <h1>🐎 馬年新春好運大抽獎 🐎</h1>
-      <div class="phase-lbl" id="phase-lbl">第一階段 — 每台必中一次</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;min-width:16vw;">
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-        <button id="btn-mute" onclick="toggleMute()" style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,215,0,0.35);color:#FFD700;border-radius:20px;padding:3px 12px;cursor:pointer;font-size:1rem;">🔊</button>
-        <div class="alphasight-badge">
-          <div style="font-size:0.62rem;opacity:0.6;">Powered by</div>
-          <div style="font-weight:bold;color:#FFD700;">AlphaSight</div>
-        </div>
-      </div>
-      <div id="horse-emblem-right" style="font-size:clamp(2rem,5vw,4rem);line-height:1;display:block;">🐎</div>
-      <img id="draw-org-logo2" class="org-logo" src="" alt="" style="display:none;">
-    </div>
+  </div>
+  <!-- Floating logos top-left -->
+  <div class="draw-logos">
+    <img id="draw-org-logo"  class="org-logo" src="" alt="">
+    <img id="draw-org-logo2" class="org-logo" src="" alt="" style="display:none;">
   </div>
 
   <!-- Three panels -->
@@ -626,9 +650,9 @@ canvas {
     <!-- CENTRE: Prize number -->
     <div class="panel panel-mid">
       <div class="prize-number-wrap">
-        <div class="prize-lbl-sm">當前獎品</div>
-        <div class="prize-number" id="prize-num">--</div>
-        <div class="prize-name-display" id="prize-name-disp"></div>
+        <div class="prize-num-small" id="prize-num-small"></div>
+        <div class="prize-name-big" id="prize-name-big">--</div>
+        <div class="prize-sponsor-disp" id="prize-sponsor-disp"></div>
       </div>
 
       <button class="btn-next" id="btn-next" onclick="nextPrize()">下一個獎品 ▶</button>
@@ -766,7 +790,8 @@ let cfg = {};
 let pool1 = [], pool2 = [];
 let currentPrize = 0, phase = 1;
 let orgLogoSrc = '';
-let prizeNames = {};
+let prizeData = {};        // prizeNum (int) -> { name, sponsor }
+let maxPrizeFromFile = 0;
 // Draw state machine: idle | table_spin | seat_ready | seat_spin | result
 let drawState = 'idle';
 let currentTable = null, currentSeat = null;
@@ -802,6 +827,41 @@ function showLogo2Preview(src) {
   p.src = src; p.style.display = 'block';
 }
 
+// ── Prizes Excel loader ──
+document.getElementById('prizes-file').addEventListener('change', function() {
+  const file = this.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      prizeData = {};
+      let lastSponsor = '';
+      let maxNum = 0;
+      rows.forEach(row => {
+        const num = parseInt(row[0]);
+        if (isNaN(num) || num <= 0) return;
+        const rawSponsor = row[1] ? String(row[1]).trim().replace(/\s+/g, ' ') : '';
+        const rawName    = row[2] ? String(row[2]).trim().replace(/\s+/g, ' ') : '';
+        if (rawSponsor) lastSponsor = rawSponsor;
+        if (rawName) {
+          prizeData[num] = { name: rawName, sponsor: rawSponsor || lastSponsor };
+          if (num > maxNum) maxNum = num;
+        }
+      });
+      maxPrizeFromFile = maxNum;
+      document.getElementById('cfg-prizes').value = maxNum;
+      const count = Object.keys(prizeData).length;
+      document.getElementById('prizes-status').textContent =
+        `✅ ${file.name} — 載入 ${count} 個獎品，最高 #${maxNum}`;
+    } catch(err) {
+      document.getElementById('prizes-status').textContent = '❌ 讀取失敗：' + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
 // ── Table list: 紫荊A/B/C + 1–63 skipping numbers ending in 4 = 60 tables ──
 function generateTableList() {
   const list = ['紫荊A', '紫荊B', '紫荊C'];
@@ -814,7 +874,9 @@ function generateTableList() {
 // ── Start ──
 function startDraw() {
   cfg.tables   = parseInt(document.getElementById('cfg-tables').value)  || 60;
-  cfg.prizes   = parseInt(document.getElementById('cfg-prizes').value)  || 80;
+  cfg.prizes   = maxPrizeFromFile > 0
+    ? maxPrizeFromFile
+    : (parseInt(document.getElementById('cfg-prizes').value) || 80);
   cfg.phase2At = parseInt(document.getElementById('cfg-phase2').value)  || 20;
 
   // Parse custom table names — supports both newline and space-separated formats
@@ -845,16 +907,10 @@ function startDraw() {
   if (orgLogoSrc) {
     const el = document.getElementById('draw-org-logo');
     el.src = orgLogoSrc; el.style.display = 'block';
-    document.getElementById('horse-emblem-left').style.display = 'none';
-  } else {
-    document.getElementById('horse-emblem-left').style.display = 'block';
   }
   if (orgLogo2Src) {
     const el2 = document.getElementById('draw-org-logo2');
     el2.src = orgLogo2Src; el2.style.display = 'block';
-    document.getElementById('horse-emblem-right').style.display = 'none';
-  } else {
-    document.getElementById('horse-emblem-right').style.display = 'block';
   }
 
   resetSlots();
@@ -874,19 +930,18 @@ function resetSlots() {
 }
 
 function updateUI() {
-  // Phase label
-  document.getElementById('phase-lbl').textContent = phase === 1
-    ? `第一階段 — 每台必中一次（剩餘 ${pool1.length} 席未抽）`
-    : `第二階段 — 終極大獎（可重複）`;
+  // Prize display — show name + sponsor, fallback to #N
+  const pd = currentPrize > 0 ? prizeData[currentPrize] : null;
+  document.getElementById('prize-name-big').textContent =
+    pd ? pd.name : (currentPrize > 0 ? `#${currentPrize}` : '--');
+  document.getElementById('prize-sponsor-disp').textContent = pd ? pd.sponsor : '';
+  document.getElementById('prize-num-small').textContent =
+    currentPrize > 0 ? `#${currentPrize} 當前獎品` : '';
 
-  // Prize display
-  document.getElementById('prize-num').textContent = currentPrize > 0 ? `#${currentPrize}` : '--';
-  document.getElementById('prize-name-disp').textContent = prizeNames[currentPrize] || '';
-
-  // Pool status
+  // Pool status (includes phase info)
   document.getElementById('pool-status').textContent = phase === 1
-    ? `池中：${pool1.length} / ${cfg.tables} 席`
-    : `池中：所有 ${cfg.tables} 席（可重複）`;
+    ? `第一階段 · 池中：${pool1.length} / ${cfg.tables} 席`
+    : `第二階段終極大獎 · 所有 ${cfg.tables} 席（可重複）`;
 
   // Button states
   const btnTable = document.getElementById('btn-table');
@@ -1060,7 +1115,7 @@ function addHistory(prizeNum, table, seat) {
   const list = document.getElementById('history-list');
   const item = document.createElement('div');
   item.className = 'history-item' + (phase === 2 ? ' p2' : '');
-  const name = prizeNames[prizeNum] ? ` ${prizeNames[prizeNum]}` : '';
+  const name = prizeData[prizeNum] ? ` ${prizeData[prizeNum].name}` : '';
   const tNum = parseInt(table);
   const isNum = !isNaN(tNum) && String(tNum) === String(table);
   const customTName = isNum && cfg.tableNames && cfg.tableNames[tNum] ? ` ${cfg.tableNames[tNum]}` : '';
