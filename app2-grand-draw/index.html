@@ -895,8 +895,8 @@ let drawState = 'idle';
 const IS_VIEWER = new URLSearchParams(location.search).get('mode') === 'viewer';
 const BC = new BroadcastChannel('alphasight-lucky-draw');
 
-// ── Cloud sync via PubNub (real-time, no account needed) ──
-const PN_CH = 'alphasight-draw-acn2026';
+// ── Firebase Realtime Database sync ──
+const FB = 'https://lucky-draw-mar-12-default-rtdb.firebaseio.com/draw';
 
 function syncToCloud() {
   if (IS_VIEWER) return;
@@ -920,8 +920,11 @@ function syncToCloud() {
     history: histItems,
     _t: Date.now()
   };
-  const encoded = encodeURIComponent(JSON.stringify(state));
-  fetch(`https://ps.pndsn.com/publish/demo/demo/0/${PN_CH}/0/${encoded}`).catch(() => {});
+  fetch(`${FB}/state.json`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(state)
+  }).catch(() => {});
 }
 
 function bcSend(msg) {
@@ -1617,10 +1620,10 @@ animateBg();
   }
   BC.onmessage = function(e) { handleViewerMsg(e.data); };
 
-  // ── PubNub real-time subscribe (cross-device) ──
+  // ── Firebase SSE real-time listener ──
   function applyCloudState(state) {
     if (!state || !state._t) return;
-    document.getElementById('prize-name-big').textContent    = state.prizeName    || '--';
+    document.getElementById('prize-name-big').textContent     = state.prizeName    || '--';
     document.getElementById('prize-sponsor-disp').textContent = state.prizeSponsor || '';
     const vt = document.getElementById('val-table');
     const vs = document.getElementById('val-seat');
@@ -1645,20 +1648,10 @@ animateBg();
     }
   }
 
-  let pnTt = '0';
-  async function pnSubscribe() {
-    try {
-      const res = await fetch(`https://ps.pndsn.com/v2/subscribe/demo/${PN_CH}/0?tt=${pnTt}&timeout=30`);
-      if (!res.ok) { setTimeout(pnSubscribe, 3000); return; }
-      const data = await res.json();
-      pnTt = data.t.t;
-      if (data.m && data.m.length > 0) {
-        data.m.forEach(msg => { if (msg.d) applyCloudState(msg.d); });
-      }
-      pnSubscribe();
-    } catch(e) { setTimeout(pnSubscribe, 3000); }
-  }
-  pnSubscribe();
+  const fbSrc = new EventSource(`${FB}/state.json`);
+  fbSrc.addEventListener('put', e => {
+    try { const d = JSON.parse(e.data); if (d.data) applyCloudState(d.data); } catch(err) {}
+  });
 
   // Request current state from host
   BC.postMessage({ type: 'request-state' });
