@@ -848,6 +848,34 @@ document.getElementById('drumroll-file').addEventListener('change', function() {
   document.getElementById('drumroll-status').textContent = '✅ ' + file.name;
 });
 
+// ── Auto-load default assets from assets/ folder ──
+(function loadDefaultAssets() {
+  // Background music
+  fetch('assets/bgmusic.mp3', { method: 'HEAD' })
+    .then(r => { if (r.ok) { bgMusic.src = 'assets/bgmusic.mp3'; const el = document.getElementById('music-status'); if (el) el.textContent = '✅ bgmusic.mp3 (預設)'; } })
+    .catch(() => {});
+  // Drumroll SFX
+  fetch('assets/drumroll.mp3', { method: 'HEAD' })
+    .then(r => { if (r.ok) { sfxDrumroll.src = 'assets/drumroll.mp3'; drumrollSfxLoaded = true; const el = document.getElementById('drumroll-status'); if (el) el.textContent = '✅ drumroll.mp3 (預設)'; } })
+    .catch(() => {});
+  // Default backdrop (only if nothing saved in localStorage)
+  if (!bgImageSrc) {
+    const img = new Image();
+    img.onload = () => {
+      bgImageSrc = 'assets/backdrop.jpg';
+      const el = document.getElementById('bg-image-status');
+      if (el) el.textContent = '✅ backdrop.jpg (預設)';
+    };
+    img.onerror = () => {
+      // try .png
+      const img2 = new Image();
+      img2.onload = () => { bgImageSrc = 'assets/backdrop.png'; };
+      img2.src = 'assets/backdrop.png';
+    };
+    img.src = 'assets/backdrop.jpg';
+  }
+})();
+
 function startDrumrollSFX() {
   if (!drumrollSfxLoaded) return;
   sfxDrumroll.currentTime = 0;
@@ -903,8 +931,9 @@ const BC = new BroadcastChannel('alphasight-lucky-draw');
 
 // ── Firebase Realtime Database sync ──
 const FB = 'https://lucky-draw-mar-12-default-rtdb.asia-southeast1.firebasedatabase.app/draw';
+let pendingSpinEvent = null;
 
-function syncToCloud() {
+function syncToCloud(immediate) {
   if (IS_VIEWER) return;
   const histItems = Array.from(document.querySelectorAll('#history-list .history-item'))
     .slice(0, 20)
@@ -924,8 +953,10 @@ function syncToCloud() {
     seatResult:        document.getElementById('res-seat').textContent,
     seatResultHidden:  document.getElementById('res-seat').classList.contains('hidden'),
     history: histItems,
+    spinEvent: pendingSpinEvent,
     _t: Date.now()
   };
+  pendingSpinEvent = null;
   fetch(`${FB}/state.json`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -933,21 +964,18 @@ function syncToCloud() {
   }).catch(() => {});
 }
 
-function fbEvent(msg) {
-  fetch(`${FB}/event.json`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...msg, _t: Date.now() })
-  }).catch(() => {});
-}
-
 function bcSend(msg) {
   if (IS_VIEWER) return;
   BC.postMessage(msg);
-  if (msg.type === 'spin-start' || msg.type === 'spin-end') {
-    fbEvent(msg);
+  if (msg.type === 'spin-start') {
+    pendingSpinEvent = { ...msg, _et: Date.now() };
+    syncToCloud(); // immediate — viewer must start spinning ASAP
+  } else if (msg.type === 'spin-end') {
+    pendingSpinEvent = { ...msg, _et: Date.now() };
+    setTimeout(syncToCloud, 80);
+  } else {
+    setTimeout(syncToCloud, 80);
   }
-  setTimeout(syncToCloud, 80);
 }
 
 let currentTable = null, currentSeat = null;
@@ -1584,6 +1612,13 @@ animateBg();
   document.getElementById('setup-screen').style.display = 'none';
   document.getElementById('draw-screen').style.display = 'flex';
 
+  // Apply any locally saved backdrop right away
+  applyBgImage();
+
+  // Start music on first user interaction (browser autoplay policy)
+  document.addEventListener('click', () => { startMusic(); }, { once: true });
+  document.addEventListener('keydown', () => { startMusic(); }, { once: true });
+
   // Hide all host controls
   ['btn-table', 'btn-seat', 'btn-mute'].forEach(id => {
     const el = document.getElementById(id);
@@ -1637,17 +1672,17 @@ animateBg();
   }
   BC.onmessage = function(e) { handleViewerMsg(e.data); };
 
-  // ── Firebase SSE listeners ──
+  // ── Firebase SSE — single stream for everything ──
   const viewerAnimating = new Set();
+  let lastSpinEt = 0;
 
   function applyCloudState(state) {
     if (!state || !state._t) return;
     document.getElementById('prize-name-big').textContent     = state.prizeName    || '--';
     document.getElementById('prize-sponsor-disp').textContent = state.prizeSponsor || '';
-    // Only update slots if not currently animating
     if (!viewerAnimating.has('table')) {
       const vt = document.getElementById('val-table');
-      if (state.tableVal && state.tableVal !== '--') { vt.textContent = state.tableVal; vt.classList.add('slot-land'); }
+      if (state.tableVal) vt.textContent = state.tableVal;
       const rt = document.getElementById('res-table');
       rt.textContent = state.tableResult || '';
       rt.classList.toggle('hidden', state.tableResultHidden !== false);
@@ -1655,7 +1690,7 @@ animateBg();
     }
     if (!viewerAnimating.has('seat')) {
       const vs = document.getElementById('val-seat');
-      if (state.seatVal && state.seatVal !== '--') { vs.textContent = state.seatVal; vs.classList.add('slot-land'); }
+      if (state.seatVal) vs.textContent = state.seatVal;
       const rs = document.getElementById('res-seat');
       rs.textContent = state.seatResult || '';
       rs.classList.toggle('hidden', state.seatResultHidden !== false);
@@ -1670,51 +1705,49 @@ animateBg();
         list.appendChild(div);
       });
     }
+    // Handle spin animation embedded in state
+    const se = state.spinEvent;
+    if (se && se._et && se._et > lastSpinEt) {
+      lastSpinEt = se._et;
+      if (se.type === 'spin-start') {
+        viewerAnimating.add(se.slot);
+        viewerSpinStart(se.slot);
+      } else if (se.type === 'spin-end') {
+        const slot = se.slot, val = se.value, res = se.resultText, tname = se.tableName || '';
+        setTimeout(() => {
+          viewerAnimating.delete(slot);
+          viewerSpinEnd(slot, val, res, tname);
+        }, 5000);
+      }
+    }
   }
 
-  // State SSE
+  // Single Firebase SSE stream
   const fbSrc = new EventSource(`${FB}/state.json`);
   fbSrc.addEventListener('put', e => {
     try { const d = JSON.parse(e.data); if (d.data) applyCloudState(d.data); } catch(err) {}
   });
 
-  // Spin event SSE — 5s extra animation on viewer
-  let lastEvtT = 0;
-  const fbEvtSrc = new EventSource(`${FB}/event.json`);
-  fbEvtSrc.addEventListener('put', e => {
-    try {
-      const d = JSON.parse(e.data);
-      const msg = d.data;
-      if (!msg || !msg._t || msg._t <= lastEvtT) return;
-      lastEvtT = msg._t;
-      if (msg.type === 'spin-start') {
-        viewerAnimating.add(msg.slot);
-        viewerSpinStart(msg.slot);
-      } else if (msg.type === 'spin-end') {
-        // Spin 5 extra seconds on viewer for drama
-        setTimeout(() => {
-          viewerAnimating.delete(msg.slot);
-          viewerSpinEnd(msg.slot, msg.value, msg.resultText, msg.tableName || '');
-        }, 5000);
+  // Load backdrop: Firebase → localStorage (already applied above) → assets/backdrop.jpg
+  function applyViewerBg(src) {
+    document.body.style.backgroundImage = `url('${src}')`;
+    document.body.style.backgroundSize = '100% 100%';
+    document.body.style.backgroundRepeat = 'no-repeat';
+    document.getElementById('bg-canvas').style.opacity = '0.45';
+  }
+  fetch(`${FB}/backdrop.json`)
+    .then(r => r.json())
+    .then(d => {
+      if (d && d.src) {
+        applyViewerBg(d.src);
+        try { localStorage.setItem('alphasight_backdrop', d.src); } catch(err) {}
+      } else if (!bgImageSrc) {
+        // No Firebase backdrop and no localStorage — try default asset
+        applyViewerBg('assets/backdrop.jpg');
       }
-    } catch(err) {}
-  });
-
-  // Backdrop SSE — sync from host and save permanently
-  const fbBgSrc = new EventSource(`${FB}/backdrop.json`);
-  fbBgSrc.addEventListener('put', e => {
-    try {
-      const d = JSON.parse(e.data);
-      if (d.data && d.data.src) {
-        const src = d.data.src;
-        document.body.style.backgroundImage = `url('${src}')`;
-        document.body.style.backgroundSize = '100% 100%';
-        document.body.style.backgroundRepeat = 'no-repeat';
-        document.getElementById('bg-canvas').style.opacity = '0.45';
-        try { localStorage.setItem('alphasight_backdrop', src); } catch(err) {}
-      }
-    } catch(err) {}
-  });
+    }).catch(() => {
+      if (!bgImageSrc) applyViewerBg('assets/backdrop.jpg');
+    });
 
   // Request current state from host
   BC.postMessage({ type: 'request-state' });
@@ -1737,6 +1770,13 @@ function viewerSpinStart(slot) {
     el.style.filter = fast ? 'blur(1px)' : '';
     if (tick > 20) fast = false;
   }, fast ? 60 : 120);
+  // Play drumroll sound (6s covers the 5s extra spin delay)
+  if (drumrollSfxLoaded) {
+    sfxDrumroll.currentTime = 0; sfxDrumroll.volume = 0.85; sfxDrumroll.play().catch(() => {});
+  } else {
+    playDrumroll(6000, false);
+  }
+  duckMusic();
 }
 
 function viewerSpinEnd(slot, value, resultText, tableName) {
@@ -1758,6 +1798,10 @@ function viewerSpinEnd(slot, value, resultText, tableName) {
   res.classList.remove('hidden');
   const rect = el.getBoundingClientRect();
   triggerBurst(rect.left + rect.width/2, rect.top + rect.height/2, false);
+  // Stop drumroll, play cymbal
+  sfxDrumroll.pause(); sfxDrumroll.currentTime = 0;
+  unduckMusic();
+  playCymbal(false);
 }
 </script>
 </body>
