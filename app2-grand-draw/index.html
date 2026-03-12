@@ -896,7 +896,7 @@ const IS_VIEWER = new URLSearchParams(location.search).get('mode') === 'viewer';
 const BC = new BroadcastChannel('alphasight-lucky-draw');
 
 // ── Firebase Realtime Database sync ──
-const FB = 'https://lucky-draw-mar-12-default-rtdb.firebaseio.com/draw';
+const FB = 'https://lucky-draw-mar-12-default-rtdb.asia-southeast1.firebasedatabase.app/draw';
 
 function syncToCloud() {
   if (IS_VIEWER) return;
