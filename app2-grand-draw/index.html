@@ -895,16 +895,18 @@ let drawState = 'idle';
 const IS_VIEWER = new URLSearchParams(location.search).get('mode') === 'viewer';
 const BC = new BroadcastChannel('alphasight-lucky-draw');
 
-// ── Cloud sync via kvdb.io (cross-device, no account needed) ──
-const KVDB = 'https://kvdb.io/KKRjEL8Ywewi7wx7GSJib6';
+// ── Cloud sync via PubNub (real-time, no account needed) ──
+const PN_CH = 'alphasight-draw-acn2026';
 
 function syncToCloud() {
   if (IS_VIEWER) return;
-  const histItems = Array.from(document.querySelectorAll('#history-list .history-item')).map(el => ({
-    prize: el.querySelector('.hi-prize') ? el.querySelector('.hi-prize').textContent : '',
-    result: el.querySelector('.hi-result') ? el.querySelector('.hi-result').textContent : '',
-    p2: el.classList.contains('p2')
-  })).reverse();
+  const histItems = Array.from(document.querySelectorAll('#history-list .history-item'))
+    .slice(0, 20)
+    .map(el => ({
+      prize:  el.querySelector('.hi-prize')  ? el.querySelector('.hi-prize').textContent  : '',
+      result: el.querySelector('.hi-result') ? el.querySelector('.hi-result').textContent : '',
+      p2: el.classList.contains('p2')
+    })).reverse();
   const state = {
     prizeName:         document.getElementById('prize-name-big').textContent,
     prizeSponsor:      document.getElementById('prize-sponsor-disp').textContent,
@@ -918,13 +920,13 @@ function syncToCloud() {
     history: histItems,
     _t: Date.now()
   };
-  fetch(`${KVDB}/state`, { method: 'PUT', body: JSON.stringify(state) }).catch(() => {});
+  const encoded = encodeURIComponent(JSON.stringify(state));
+  fetch(`https://ps.pndsn.com/publish/demo/demo/0/${PN_CH}/0/${encoded}`).catch(() => {});
 }
 
 function bcSend(msg) {
   if (IS_VIEWER) return;
   BC.postMessage(msg);
-  // Sync to cloud after DOM settles
   setTimeout(syncToCloud, 80);
 }
 
@@ -1615,46 +1617,48 @@ animateBg();
   }
   BC.onmessage = function(e) { handleViewerMsg(e.data); };
 
-  // ── Cloud sync: poll kvdb.io every 600ms for cross-device updates ──
-  let lastCloudT = 0;
-  async function pollCloud() {
-    try {
-      const res = await fetch(`${KVDB}/state?_=${Date.now()}`);
-      if (res.ok) {
-        const state = await res.json();
-        if (state && state._t && state._t > lastCloudT) {
-          lastCloudT = state._t;
-          // Apply display state
-          document.getElementById('prize-name-big').textContent = state.prizeName || '--';
-          document.getElementById('prize-sponsor-disp').textContent = state.prizeSponsor || '';
-          const vt = document.getElementById('val-table');
-          const vs = document.getElementById('val-seat');
-          if (state.tableVal && state.tableVal !== '--') { vt.textContent = state.tableVal; vt.classList.add('slot-land'); }
-          if (state.seatVal  && state.seatVal  !== '--') { vs.textContent = state.seatVal;  vs.classList.add('slot-land'); }
-          const rt = document.getElementById('res-table');
-          rt.textContent = state.tableResult || '';
-          rt.classList.toggle('hidden', state.tableResultHidden !== false);
-          document.getElementById('val-table-name').textContent = state.tableName || '';
-          const rs = document.getElementById('res-seat');
-          rs.textContent = state.seatResult || '';
-          rs.classList.toggle('hidden', state.seatResultHidden !== false);
-          // Rebuild history list
-          if (Array.isArray(state.history)) {
-            const list = document.getElementById('history-list');
-            list.innerHTML = '';
-            [...state.history].reverse().forEach(item => {
-              const div = document.createElement('div');
-              div.className = 'history-item' + (item.p2 ? ' p2' : '');
-              div.innerHTML = `<span class="hi-prize">${item.prize}</span><span class="hi-result">${item.result}</span>`;
-              list.appendChild(div);
-            });
-          }
-        }
-      }
-    } catch(e) {}
-    setTimeout(pollCloud, 600);
+  // ── PubNub real-time subscribe (cross-device) ──
+  function applyCloudState(state) {
+    if (!state || !state._t) return;
+    document.getElementById('prize-name-big').textContent    = state.prizeName    || '--';
+    document.getElementById('prize-sponsor-disp').textContent = state.prizeSponsor || '';
+    const vt = document.getElementById('val-table');
+    const vs = document.getElementById('val-seat');
+    if (state.tableVal && state.tableVal !== '--') { vt.textContent = state.tableVal; vt.classList.add('slot-land'); }
+    if (state.seatVal  && state.seatVal  !== '--') { vs.textContent = state.seatVal;  vs.classList.add('slot-land'); }
+    const rt = document.getElementById('res-table');
+    rt.textContent = state.tableResult || '';
+    rt.classList.toggle('hidden', state.tableResultHidden !== false);
+    document.getElementById('val-table-name').textContent = state.tableName || '';
+    const rs = document.getElementById('res-seat');
+    rs.textContent = state.seatResult || '';
+    rs.classList.toggle('hidden', state.seatResultHidden !== false);
+    if (Array.isArray(state.history)) {
+      const list = document.getElementById('history-list');
+      list.innerHTML = '';
+      [...state.history].reverse().forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'history-item' + (item.p2 ? ' p2' : '');
+        div.innerHTML = `<span class="hi-prize">${item.prize}</span><span class="hi-result">${item.result}</span>`;
+        list.appendChild(div);
+      });
+    }
   }
-  pollCloud();
+
+  let pnTt = '0';
+  async function pnSubscribe() {
+    try {
+      const res = await fetch(`https://ps.pndsn.com/v2/subscribe/demo/${PN_CH}/0?tt=${pnTt}&timeout=30`);
+      if (!res.ok) { setTimeout(pnSubscribe, 3000); return; }
+      const data = await res.json();
+      pnTt = data.t.t;
+      if (data.m && data.m.length > 0) {
+        data.m.forEach(msg => { if (msg.d) applyCloudState(msg.d); });
+      }
+      pnSubscribe();
+    } catch(e) { setTimeout(pnSubscribe, 3000); }
+  }
+  pnSubscribe();
 
   // Request current state from host
   BC.postMessage({ type: 'request-state' });
