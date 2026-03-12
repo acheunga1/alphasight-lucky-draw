@@ -937,7 +937,7 @@ function drawTable() {
   updateUI();
 
   const isHighStakes = currentPrize <= cfg.phase2At;
-  const duration = currentPrize <= 10 ? 2500 : currentPrize <= 20 ? 1600 : 1000;
+  const duration = currentPrize <= 10 ? 1200 : currentPrize <= 20 ? 800 : 500;
   duckMusic();
   if (drumrollSfxLoaded) { startDrumrollSFX(); } else { playDrumroll(duration, isHighStakes); }
 
@@ -993,7 +993,7 @@ function drawSeat() {
   updateUI();
 
   const isHighStakes = currentPrize <= cfg.phase2At;
-  const duration = currentPrize <= 10 ? 2200 : currentPrize <= 20 ? 1400 : 900;
+  const duration = currentPrize <= 10 ? 1000 : currentPrize <= 20 ? 700 : 400;
   duckMusic();
   if (drumrollSfxLoaded) { startDrumrollSFX(); } else { playDrumroll(duration, isHighStakes); }
 
@@ -1105,7 +1105,7 @@ function animateSlot(valId, glowId, fakeFn, target, duration, onDone) {
 
     if (progress < 1) {
       // Power-12 ease: stays at 60fps until ~85%, then drops dramatically
-      const interval = Math.pow(progress, 12) * 200;
+      const interval = Math.pow(progress, 8) * 120;
       el.textContent = fakeFn();
       // Motion blur during fast phase — makes it look faster than 60fps
       const blur = interval < 20 ? 1 : 0;
