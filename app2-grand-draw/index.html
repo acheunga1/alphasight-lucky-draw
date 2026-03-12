@@ -1186,8 +1186,6 @@ function startDraw() {
   cfg.prizes   = maxPrizeFromFile > 0
     ? maxPrizeFromFile
     : (parseInt(document.getElementById('cfg-prizes').value) || 80);
-  cfg.phase2At = cfg.prizes - cfg.tableList.length; // auto: phase 2 starts after first 63 prizes
-
   // Parse custom table names — supports both newline and space-separated formats
   cfg.tableNames = {};
   const tnRaw = document.getElementById('cfg-table-names').value
@@ -1198,7 +1196,8 @@ function startDraw() {
   });
 
   cfg.tableList = generateTableList();
-  cfg.tables = cfg.tableList.length; // 60
+  cfg.tables = cfg.tableList.length; // 63
+  cfg.phase2At = cfg.prizes - cfg.tableList.length; // auto: phase 2 starts after first 63 prizes
   pool1 = [...cfg.tableList];
   shuffleArray(pool1);
   pool2 = [...cfg.tableList];
