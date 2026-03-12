@@ -1705,6 +1705,15 @@ animateBg();
         list.appendChild(div);
       });
     }
+    // Safety: if slot already has a visible result but viewer is still animating, stop it
+    if (viewerAnimating.has('table') && state.tableResultHidden === false && state.tableResult) {
+      viewerAnimating.delete('table');
+      viewerSpinEnd('table', state.tableVal, state.tableResult, state.tableName || '');
+    }
+    if (viewerAnimating.has('seat') && state.seatResultHidden === false && state.seatResult) {
+      viewerAnimating.delete('seat');
+      viewerSpinEnd('seat', state.seatVal, state.seatResult, '');
+    }
     // Handle spin animation embedded in state
     const se = state.spinEvent;
     if (se && se._et && se._et > lastSpinEt) {
@@ -1717,7 +1726,7 @@ animateBg();
         setTimeout(() => {
           viewerAnimating.delete(slot);
           viewerSpinEnd(slot, val, res, tname);
-        }, 5000);
+        }, 1000);
       }
     }
   }
@@ -1770,11 +1779,11 @@ function viewerSpinStart(slot) {
     el.style.filter = fast ? 'blur(1px)' : '';
     if (tick > 20) fast = false;
   }, fast ? 60 : 120);
-  // Play drumroll sound (6s covers the 5s extra spin delay)
+  // Play drumroll sound (2s covers the 1s extra spin delay)
   if (drumrollSfxLoaded) {
     sfxDrumroll.currentTime = 0; sfxDrumroll.volume = 0.85; sfxDrumroll.play().catch(() => {});
   } else {
-    playDrumroll(6000, false);
+    playDrumroll(2000, false);
   }
   duckMusic();
 }
