@@ -681,10 +681,10 @@ body.viewer-mode .slot-val.seat-val {
       <label>獎品總數</label>
       <input type="number" id="cfg-prizes" value="111" min="1" max="999">
     </div>
-    <div class="config-box full">
-      <label>第二階段從第幾名開始（頂部大獎數量）</label>
-      <input type="number" id="cfg-phase2" value="20" min="1" max="500">
-      <div style="font-size:0.75rem;color:#FFA500;margin-top:4px;">預設：最後 20 份獎品（#20–#1）進入第二階段，所有席數重新入池</div>
+    <div class="config-box full" style="opacity:0.7;">
+      <label>第二階段自動開始</label>
+      <div style="font-size:0.8rem;color:#FFA500;margin-top:4px;">首 63 份獎品（第一輪）每席各抽一次，之後自動重置所有席數進入第二輪（同樣不重複，直至最後一份大獎）</div>
+      <input type="number" id="cfg-phase2" value="20" min="1" max="500" style="display:none;">
     </div>
     <div class="config-box full">
       <label>自定義席名（席號=席名，每行一個）— 可只填有特別名稱的席</label>
@@ -1186,7 +1186,7 @@ function startDraw() {
   cfg.prizes   = maxPrizeFromFile > 0
     ? maxPrizeFromFile
     : (parseInt(document.getElementById('cfg-prizes').value) || 80);
-  cfg.phase2At = parseInt(document.getElementById('cfg-phase2').value)  || 20;
+  cfg.phase2At = cfg.prizes - cfg.tableList.length; // auto: phase 2 starts after first 63 prizes
 
   // Parse custom table names — supports both newline and space-separated formats
   cfg.tableNames = {};
@@ -1280,7 +1280,7 @@ function updateUI() {
   // Pool status (includes phase info)
   document.getElementById('pool-status').textContent = phase === 1
     ? `第一階段 · 池中：${pool1.length} / ${cfg.tables} 席`
-    : `第二階段終極大獎 · 所有 ${cfg.tables} 席（可重複）`;
+    : `第二階段終極大獎 · 池中：${pool2.length} / ${cfg.tables} 席（不重複）`;
 
   // Button states
   const btnTable = document.getElementById('btn-table');
@@ -1324,7 +1324,8 @@ function drawTable() {
     if (pool1.length === 0) return;
     tableNum = pool1.splice(Math.floor(Math.random() * pool1.length), 1)[0];
   } else {
-    tableNum = pool2[Math.floor(Math.random() * pool2.length)];
+    if (pool2.length === 0) { pool2 = [...cfg.tableList]; shuffleArray(pool2); } // safety reset if exhausted
+    tableNum = pool2.splice(Math.floor(Math.random() * pool2.length), 1)[0];
   }
   currentTable = tableNum;
 
@@ -1449,7 +1450,7 @@ function nextPrize() {
   // Phase transition check: phase 1 ends when pool1 is exhausted
   if (phase === 1 && pool1.length === 0 && currentPrize > 0) {
     phase = 2;
-    pool2 = [...cfg.tableList];
+    pool2 = [...cfg.tableList]; shuffleArray(pool2);
     document.getElementById('phase2-count').textContent = currentPrize;
     drawState = 'idle';
     resetSlots();
