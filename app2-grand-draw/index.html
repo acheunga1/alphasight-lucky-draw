@@ -1174,10 +1174,10 @@ document.getElementById('prizes-file').addEventListener('change', function() {
 // ── Table list: 紫荊A/B/C + 1–63 skipping numbers ending in 4 = 60 tables ──
 function generateTableList() {
   const list = ['紫荊A', '紫荊B', '紫荊C'];
-  for (let n = 1; n <= 64; n++) {
+  for (let n = 1; n <= 67; n++) {
     if (n % 10 !== 4) list.push(String(n));
   }
-  return list; // 3 + 57 = 60
+  return list; // 3 + 60 = 63
 }
 
 // ── Start ──
