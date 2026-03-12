@@ -827,35 +827,49 @@ function showLogo2Preview(src) {
   p.src = src; p.style.display = 'block';
 }
 
-// ── Prizes Excel loader ──
+// ── Prizes Excel parser (shared) ──
+function parsePrizesBuffer(arrayBuffer, label) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+  prizeData = {};
+  let lastSponsor = '';
+  let maxNum = 0;
+  rows.forEach(row => {
+    const num = parseInt(row[0]);
+    if (isNaN(num) || num <= 0) return;
+    if (num > maxNum) maxNum = num;   // count ALL rows, not just named ones
+    const rawSponsor = row[1] ? String(row[1]).trim().replace(/\s+/g, ' ') : '';
+    const rawName    = row[2] ? String(row[2]).trim().replace(/\s+/g, ' ') : '';
+    if (rawSponsor) lastSponsor = rawSponsor;
+    if (rawName) {
+      prizeData[num] = { name: rawName, sponsor: rawSponsor || lastSponsor };
+    }
+  });
+  maxPrizeFromFile = maxNum;
+  document.getElementById('cfg-prizes').value = maxNum;
+  const count = Object.keys(prizeData).length;
+  document.getElementById('prizes-status').textContent =
+    `✅ ${label} — 載入 ${count} 個獎品名稱，共 ${maxNum} 個獎品`;
+}
+
+// ── Auto-load prizes from repo on page start ──
+(async function autoLoadPrizes() {
+  try {
+    const res = await fetch('./assets/prizes/抽獎.xlsx');
+    if (!res.ok) return;
+    const buf = await res.arrayBuffer();
+    parsePrizesBuffer(buf, '抽獎.xlsx（自動載入）');
+  } catch(e) { /* silent — user can upload manually */ }
+})();
+
+// ── Manual prizes file upload ──
 document.getElementById('prizes-file').addEventListener('change', function() {
   const file = this.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
-    try {
-      const wb = XLSX.read(e.target.result, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      prizeData = {};
-      let lastSponsor = '';
-      let maxNum = 0;
-      rows.forEach(row => {
-        const num = parseInt(row[0]);
-        if (isNaN(num) || num <= 0) return;
-        const rawSponsor = row[1] ? String(row[1]).trim().replace(/\s+/g, ' ') : '';
-        const rawName    = row[2] ? String(row[2]).trim().replace(/\s+/g, ' ') : '';
-        if (rawSponsor) lastSponsor = rawSponsor;
-        if (rawName) {
-          prizeData[num] = { name: rawName, sponsor: rawSponsor || lastSponsor };
-          if (num > maxNum) maxNum = num;
-        }
-      });
-      maxPrizeFromFile = maxNum;
-      document.getElementById('cfg-prizes').value = maxNum;
-      const count = Object.keys(prizeData).length;
-      document.getElementById('prizes-status').textContent =
-        `✅ ${file.name} — 載入 ${count} 個獎品，最高 #${maxNum}`;
-    } catch(err) {
+    try { parsePrizesBuffer(e.target.result, file.name); }
+    catch(err) {
       document.getElementById('prizes-status').textContent = '❌ 讀取失敗：' + err.message;
     }
   };
