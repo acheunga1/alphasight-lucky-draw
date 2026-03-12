@@ -1763,7 +1763,9 @@ animateBg();
 })();
 
 let viewerSpinTimers = {};
+const viewerSpinEnded = new Set();
 function viewerSpinStart(slot) {
+  viewerSpinEnded.delete(slot); // reset guard for new spin
   const valId  = slot === 'table' ? 'val-table'  : 'val-seat';
   const glowId = slot === 'table' ? 'glow-table' : 'glow-seat';
   const el   = document.getElementById(valId);
@@ -1789,6 +1791,8 @@ function viewerSpinStart(slot) {
 }
 
 function viewerSpinEnd(slot, value, resultText, tableName) {
+  if (viewerSpinEnded.has(slot)) return; // already revealed, skip duplicate
+  viewerSpinEnded.add(slot);
   const valId  = slot === 'table' ? 'val-table'  : 'val-seat';
   const glowId = slot === 'table' ? 'glow-table' : 'glow-seat';
   const resId  = slot === 'table' ? 'res-table'  : 'res-seat';
