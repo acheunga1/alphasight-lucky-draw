@@ -1506,6 +1506,13 @@ function shuffleArray(arr) {
 }
 
 // ── Generic slot animator ──
+function setSlotVal(el, val) {
+  el.textContent = val;
+  // 紫荊A/B/C are long — shrink font so they fit
+  const isLong = /^紫荊/.test(val);
+  el.style.fontSize = isLong ? 'clamp(1.6rem, 3.5vw, 3.2rem)' : '';
+}
+
 function animateSlot(valId, glowId, fakeFn, target, duration, onDone) {
   const el   = document.getElementById(valId);
   const glow = document.getElementById(glowId);
@@ -1530,7 +1537,7 @@ function animateSlot(valId, glowId, fakeFn, target, duration, onDone) {
         setTimeout(() => requestAnimationFrame(tick), interval - 16);
       }
     } else {
-      el.textContent = target;
+      setSlotVal(el, target);
       el.style.filter = '';
       glow.classList.remove('active');
       onDone();
@@ -1871,6 +1878,7 @@ function viewerSpinStart(slot) {
   const el   = document.getElementById(valId);
   const glow = document.getElementById(glowId);
   if (viewerSpinTimers[slot]) clearInterval(viewerSpinTimers[slot]);
+  el.style.fontSize = ''; // reset before spin
   glow.classList.add('active');
   const emojis = ['🐎','🧧','🏮','🪙','🎊','🌸','🎆','💮','🐴','🎇'];
   let fast = true;
@@ -1901,7 +1909,7 @@ function viewerSpinEnd(slot, value, resultText, tableName) {
   const el   = document.getElementById(valId);
   const glow = document.getElementById(glowId);
   el.style.filter = '';
-  el.textContent = value;
+  setSlotVal(el, value);
   el.classList.remove('slot-land');
   void el.offsetWidth;
   el.classList.add('slot-land');
