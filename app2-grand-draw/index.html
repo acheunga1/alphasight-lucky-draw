@@ -683,12 +683,9 @@ canvas {
 let bgImageSrc = '';
 document.getElementById('bg-image-file').addEventListener('change', function() {
   const file = this.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    bgImageSrc = e.target.result;
-    document.getElementById('bg-image-status').textContent = '✅ ' + file.name;
-  };
-  reader.readAsDataURL(file);
+  if (bgImageSrc && bgImageSrc.startsWith('blob:')) URL.revokeObjectURL(bgImageSrc);
+  bgImageSrc = URL.createObjectURL(file);
+  document.getElementById('bg-image-status').textContent = '✅ ' + file.name + ' (' + (file.size/1024/1024).toFixed(1) + ' MB)';
 });
 
 function applyBgImage() {
