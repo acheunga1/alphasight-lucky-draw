@@ -798,6 +798,12 @@ document.getElementById('bg-image-file').addEventListener('change', function() {
     bgImageSrc = e.target.result;
     try { localStorage.setItem('alphasight_backdrop', bgImageSrc); } catch(err) {}
     document.getElementById('bg-image-status').textContent = '✅ ' + file.name + ' (' + (file.size/1024/1024).toFixed(1) + ' MB) — 已儲存';
+    // Sync backdrop to Firebase for viewer
+    fetch(`${FB}/backdrop.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ src: bgImageSrc, _t: Date.now() })
+    }).catch(() => {});
   };
   reader.readAsDataURL(file);
 });
@@ -927,9 +933,20 @@ function syncToCloud() {
   }).catch(() => {});
 }
 
+function fbEvent(msg) {
+  fetch(`${FB}/event.json`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...msg, _t: Date.now() })
+  }).catch(() => {});
+}
+
 function bcSend(msg) {
   if (IS_VIEWER) return;
   BC.postMessage(msg);
+  if (msg.type === 'spin-start' || msg.type === 'spin-end') {
+    fbEvent(msg);
+  }
   setTimeout(syncToCloud, 80);
 }
 
@@ -1620,22 +1637,29 @@ animateBg();
   }
   BC.onmessage = function(e) { handleViewerMsg(e.data); };
 
-  // ── Firebase SSE real-time listener ──
+  // ── Firebase SSE listeners ──
+  const viewerAnimating = new Set();
+
   function applyCloudState(state) {
     if (!state || !state._t) return;
     document.getElementById('prize-name-big').textContent     = state.prizeName    || '--';
     document.getElementById('prize-sponsor-disp').textContent = state.prizeSponsor || '';
-    const vt = document.getElementById('val-table');
-    const vs = document.getElementById('val-seat');
-    if (state.tableVal && state.tableVal !== '--') { vt.textContent = state.tableVal; vt.classList.add('slot-land'); }
-    if (state.seatVal  && state.seatVal  !== '--') { vs.textContent = state.seatVal;  vs.classList.add('slot-land'); }
-    const rt = document.getElementById('res-table');
-    rt.textContent = state.tableResult || '';
-    rt.classList.toggle('hidden', state.tableResultHidden !== false);
-    document.getElementById('val-table-name').textContent = state.tableName || '';
-    const rs = document.getElementById('res-seat');
-    rs.textContent = state.seatResult || '';
-    rs.classList.toggle('hidden', state.seatResultHidden !== false);
+    // Only update slots if not currently animating
+    if (!viewerAnimating.has('table')) {
+      const vt = document.getElementById('val-table');
+      if (state.tableVal && state.tableVal !== '--') { vt.textContent = state.tableVal; vt.classList.add('slot-land'); }
+      const rt = document.getElementById('res-table');
+      rt.textContent = state.tableResult || '';
+      rt.classList.toggle('hidden', state.tableResultHidden !== false);
+      document.getElementById('val-table-name').textContent = state.tableName || '';
+    }
+    if (!viewerAnimating.has('seat')) {
+      const vs = document.getElementById('val-seat');
+      if (state.seatVal && state.seatVal !== '--') { vs.textContent = state.seatVal; vs.classList.add('slot-land'); }
+      const rs = document.getElementById('res-seat');
+      rs.textContent = state.seatResult || '';
+      rs.classList.toggle('hidden', state.seatResultHidden !== false);
+    }
     if (Array.isArray(state.history)) {
       const list = document.getElementById('history-list');
       list.innerHTML = '';
@@ -1648,9 +1672,48 @@ animateBg();
     }
   }
 
+  // State SSE
   const fbSrc = new EventSource(`${FB}/state.json`);
   fbSrc.addEventListener('put', e => {
     try { const d = JSON.parse(e.data); if (d.data) applyCloudState(d.data); } catch(err) {}
+  });
+
+  // Spin event SSE — 5s extra animation on viewer
+  let lastEvtT = 0;
+  const fbEvtSrc = new EventSource(`${FB}/event.json`);
+  fbEvtSrc.addEventListener('put', e => {
+    try {
+      const d = JSON.parse(e.data);
+      const msg = d.data;
+      if (!msg || !msg._t || msg._t <= lastEvtT) return;
+      lastEvtT = msg._t;
+      if (msg.type === 'spin-start') {
+        viewerAnimating.add(msg.slot);
+        viewerSpinStart(msg.slot);
+      } else if (msg.type === 'spin-end') {
+        // Spin 5 extra seconds on viewer for drama
+        setTimeout(() => {
+          viewerAnimating.delete(msg.slot);
+          viewerSpinEnd(msg.slot, msg.value, msg.resultText, msg.tableName || '');
+        }, 5000);
+      }
+    } catch(err) {}
+  });
+
+  // Backdrop SSE — sync from host and save permanently
+  const fbBgSrc = new EventSource(`${FB}/backdrop.json`);
+  fbBgSrc.addEventListener('put', e => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.data && d.data.src) {
+        const src = d.data.src;
+        document.body.style.backgroundImage = `url('${src}')`;
+        document.body.style.backgroundSize = '100% 100%';
+        document.body.style.backgroundRepeat = 'no-repeat';
+        document.getElementById('bg-canvas').style.opacity = '0.45';
+        try { localStorage.setItem('alphasight_backdrop', src); } catch(err) {}
+      }
+    } catch(err) {}
   });
 
   // Request current state from host
