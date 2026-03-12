@@ -1748,26 +1748,26 @@ animateBg();
     try { const d = JSON.parse(e.data); if (d.data) applyCloudState(d.data); } catch(err) {}
   });
 
-  // Load backdrop: Firebase → localStorage (already applied above) → assets/backdrop.jpg
+  // Backdrop sync: SSE stream so viewer updates instantly when host uploads
   function applyViewerBg(src) {
+    if (!src) return;
+    bgImageSrc = src;
     document.body.style.backgroundImage = `url('${src}')`;
     document.body.style.backgroundSize = '100% 100%';
     document.body.style.backgroundRepeat = 'no-repeat';
     document.getElementById('bg-canvas').style.opacity = '0.45';
+    try { localStorage.setItem('alphasight_backdrop', src); } catch(err) {}
   }
+  // One-time fetch for current backdrop on load
   fetch(`${FB}/backdrop.json`)
     .then(r => r.json())
-    .then(d => {
-      if (d && d.src) {
-        applyViewerBg(d.src);
-        try { localStorage.setItem('alphasight_backdrop', d.src); } catch(err) {}
-      } else if (!bgImageSrc) {
-        // No Firebase backdrop and no localStorage — try default asset
-        applyViewerBg('assets/backdrop.jpg');
-      }
-    }).catch(() => {
-      if (!bgImageSrc) applyViewerBg('assets/backdrop.jpg');
-    });
+    .then(d => { if (d && d.src) applyViewerBg(d.src); else if (!bgImageSrc) applyViewerBg('assets/backdrop.jpg'); })
+    .catch(() => { if (!bgImageSrc) applyViewerBg('assets/backdrop.jpg'); });
+  // Live SSE — fires immediately when host uploads a new backdrop
+  const backdropSrc = new EventSource(`${FB}/backdrop.json`);
+  backdropSrc.addEventListener('put', e => {
+    try { const d = JSON.parse(e.data); if (d.data && d.data.src) applyViewerBg(d.data.src); } catch(err) {}
+  });
 
   // Request current state from host
   BC.postMessage({ type: 'request-state' });
